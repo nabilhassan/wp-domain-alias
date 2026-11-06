@@ -4,7 +4,7 @@ Tags: domains, domain alias, multiple domains, canonical, hostname
 Requires at least: 6.4
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.1.1-beta
+Stable tag: 0.1.1
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -25,7 +25,7 @@ This is domain aliasing for one site. It is not WordPress Multisite and does not
 
 = What you must set up outside WordPress =
 
-The plugin cannot create DNS records, hosting domain mappings, virtual hosts or SSL certificates. Each alias must already reach this WordPress installation over HTTPS before you add it. See the hosting guides in the `docs/` folder of the project repository.
+Configure every domain to route to the same WordPress installation before installing. For A records, point each root domain to the same hosting-assigned IP address; for providers requiring CNAMEs or managed DNS targets, follow their instructions instead. Include any www hostnames you intend to use, add all domains at your host and configure HTTPS. The plugin cannot create DNS records, hosting domain mappings, virtual hosts or SSL certificates. See the hosting guides in the `docs/` folder of the project repository.
 
 = Tested with =
 
@@ -37,8 +37,8 @@ Checkout and payment flows, membership or single sign-on logins and other cross-
 
 == Installation ==
 
-1. Make sure the alias domain already points to this site and has HTTPS (see the hosting guides).
-2. Go to Plugins → Add New → Upload Plugin, choose `wp-domain-alias-0.1.1-beta.zip` and activate it.
+1. Point every domain to the same WordPress installation (the same A-record IP where supported, or the provider-required CNAME/target), add the domains at your host, and verify HTTPS.
+2. Go to Plugins → Add New → Upload Plugin, choose `wp-domain-alias-0.1.1.zip` and activate it.
 3. Go to Settings → WP Domain Alias and add the alias domain.
 4. Run the health check.
 5. Purge any page cache, then visit the alias and click through the menus and forms.
@@ -61,6 +61,9 @@ No. Add every domain separately, including the www and non-www forms you want to
 
 == Changelog ==
 
+= 0.1.1 =
+* First non-beta release. No functional changes from 0.1.1-beta; see the compatibility matrix for tested environments.
+
 = 0.1.1-beta =
 * Canonical URLs always point to the primary domain; the alias canonical option was removed and stored values are migrated with a one-time notice.
 * The health check runs a few domains at a time (one per request with JavaScript), validates every resolved address and pins the connection to it.
@@ -71,6 +74,9 @@ No. Add every domain separately, including the www and non-www forms you want to
 * First public beta, generalised from a private single-site plugin.
 
 == Upgrade Notice ==
+
+= 0.1.1 =
+Use the current 0.1.1 release and follow the DNS/HTTPS requirements in the README.
 
 = 0.1.1-beta =
 Canonical URLs on alias pages now always point to the primary domain. If you had chosen alias canonicals, that setting is removed. Test on a staging site first.

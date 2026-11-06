@@ -232,7 +232,7 @@ class Admin {
 			return;
 		}
 		echo '<div class="notice notice-warning"><p><strong>' . esc_html__( 'WP Domain Alias:', 'wp-domain-alias' ) . '</strong> ';
-		echo esc_html__( 'The "point canonical URLs to the alias" setting was removed in 0.1.1-beta. Canonical URLs on alias pages now point to the primary domain, matching the sitemaps and structured data. Review your search engine setup if you relied on alias canonicals.', 'wp-domain-alias' ) . '</p>';
+		echo esc_html__( 'The "point canonical URLs to the alias" setting was removed in 0.1.1. Canonical URLs on alias pages now point to the primary domain, matching the sitemaps and structured data. Review your search engine setup if you relied on alias canonicals.', 'wp-domain-alias' ) . '</p>';
 		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" style="margin:0 0 8px">';
 		wp_nonce_field( 'wpda_dismiss_canonical_notice' );
 		echo '<input type="hidden" name="action" value="wpda_dismiss_canonical_notice">';
