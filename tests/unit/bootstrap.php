@@ -26,7 +26,7 @@ if ( ! is_dir( $inc . '/html-api' ) ) {
 	fwrite( STDERR, "WordPress core not found at $core. Set WP_CORE_DIR or run tests/e2e/setup-wp.sh.\n" );
 	exit( 2 );
 }
-foreach ( array( 'compat-utf8.php', 'utf8.php', 'class-wp-token-map.php', 'html-api/html5-named-character-references.php' ) as $f ) {
+foreach ( array( 'compat-utf8.php', 'compat.php', 'utf8.php', 'class-wp-token-map.php', 'html-api/html5-named-character-references.php' ) as $f ) {
 	if ( is_file( "$inc/$f" ) ) {
 		require_once "$inc/$f";
 	}
