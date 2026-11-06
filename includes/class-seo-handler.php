@@ -12,9 +12,11 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Keeps search-engine URLs consistent on alias page views.
  *
- * Default ("primary"): canonical, hreflang alternates and og:url point at the
- * primary domain. Optional ("alias"): they point at the alias being viewed.
- * Sitemaps and structured data are not changed in either mode.
+ * Policy (single, since 0.1.1-beta): canonical, hreflang alternates, og:url
+ * and twitter:url point at the primary domain, consistent with sitemaps and
+ * structured data, which WordPress already generates on the primary domain.
+ * An "alias canonical" mode existed in 0.1.0-beta and was removed because
+ * sitemaps and JSON-LD could not follow it consistently.
  */
 class Seo_Handler {
 
@@ -90,15 +92,13 @@ class Seo_Handler {
 	}
 
 	/**
-	 * Moves an own-site URL to the host the canonical policy prefers.
+	 * Moves an own-site URL (primary, its www form, or any alias) to the
+	 * primary domain.
 	 *
 	 * @param string $url URL.
 	 * @return string
 	 */
 	public function apply_policy( $url ) {
-		if ( Domain_Manager::CANONICAL_ALIAS === $this->domains->canonical_mode() ) {
-			return $this->urls->to_alias( $url );
-		}
 		return $this->urls->move(
 			$url,
 			$this->domains->own_hosts(),

@@ -63,11 +63,11 @@ for (const seo of [
         assertNavigation(r.body, host);
       });
     }
-    test('alias canonical mode uses the plugin filter (still exactly one tag)', async () => {
+    test('a stored 0.1.0-beta "alias" canonical setting still yields one primary canonical and og:url', async () => {
       setSettings({ canonical_mode: 'alias' });
       const r = await request('alias-one.test', '/about/');
-      assert.deepEqual(canonicals(r.body), ['http://alias-one.test/about/']);
-      assert.deepEqual(meta(r.body, 'og:url'), meta(r.body, 'og:url').length ? ['http://alias-one.test/about/'] : []);
+      assert.deepEqual(canonicals(r.body), [`http://${PRIMARY}/about/`]);
+      assert.ok(meta(r.body, 'og:url').every(u => new URL(u).hostname === PRIMARY));
       setSettings({});
     });
     test('XML sitemap on an alias lists primary URLs', async () => {

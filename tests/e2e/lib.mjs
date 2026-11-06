@@ -21,7 +21,7 @@ export function wp(...args) {
 }
 
 export function setSettings(settings) {
-  const value = { enabled: true, aliases: ALIASES, canonical_mode: 'primary', diagnostics: false, ...settings };
+  const value = { enabled: true, aliases: ALIASES, diagnostics: false, ...settings };
   wp('option', 'update', 'wp_domain_alias_settings', JSON.stringify(value), '--format=json');
 }
 
@@ -104,12 +104,12 @@ export function isProtected(u) {
 }
 
 /** Logs in as admin on the primary host; returns a Cookie header value. */
-export async function login() {
+export async function login(user = 'admin', pass = 'password') {
   await request(PRIMARY, '/wp-login.php', { headers: { Cookie: 'wordpress_test_cookie=WP%20Cookie%20check' } });
   const r = await request(PRIMARY, '/wp-login.php', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', Cookie: 'wordpress_test_cookie=WP%20Cookie%20check' },
-    body: 'log=admin&pwd=password&wp-submit=Log+In&testcookie=1&redirect_to=%2Fwp-admin%2F',
+    body: `log=${encodeURIComponent(user)}&pwd=${encodeURIComponent(pass)}&wp-submit=Log+In&testcookie=1&redirect_to=%2Fwp-admin%2F`,
   });
   const jar = r.cookies.map(c => c.split(';')[0]);
   if (!jar.some(c => c.startsWith('wordpress_logged_in_'))) throw new Error(`login failed: HTTP ${r.status}`);

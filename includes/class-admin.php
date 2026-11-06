@@ -54,9 +54,14 @@ class Admin {
 		add_action( 'admin_menu', array( $this, 'add_page' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue' ) );
 		add_filter( 'plugin_action_links_' . plugin_basename( WP_DOMAIN_ALIAS_FILE ), array( $this, 'action_links' ) );
-		foreach ( array( 'save_settings', 'add_alias', 'remove_alias', 'health_check' ) as $action ) {
+		add_action( 'admin_init', array( $this->domains, 'migrate_legacy_settings' ) );
+		add_action( 'admin_notices', array( $this, 'canonical_notice' ) );
+		foreach ( array( 'save_settings', 'add_alias', 'remove_alias', 'health_check', 'health_continue', 'dismiss_canonical_notice' ) as $action ) {
 			add_action( 'admin_post_wpda_' . $action, array( $this, 'handle_' . $action ) );
 		}
+		// Progressive health check for browsers with JavaScript (one host per request).
+		add_action( 'wp_ajax_wpda_health_start', array( $this, 'ajax_health_start' ) );
+		add_action( 'wp_ajax_wpda_health_step', array( $this, 'ajax_health_step' ) );
 	}
 
 	/**
@@ -85,6 +90,22 @@ class Admin {
 			return;
 		}
 		wp_enqueue_style( 'wp-domain-alias-admin', plugins_url( 'admin/admin.css', WP_DOMAIN_ALIAS_FILE ), array(), WP_DOMAIN_ALIAS_VERSION );
+		wp_enqueue_script( 'wp-domain-alias-admin', plugins_url( 'admin/admin.js', WP_DOMAIN_ALIAS_FILE ), array(), WP_DOMAIN_ALIAS_VERSION, true );
+		wp_localize_script(
+			'wp-domain-alias-admin',
+			'wpdaHealth',
+			array(
+				'ajaxUrl'    => admin_url( 'admin-ajax.php' ),
+				'startNonce' => wp_create_nonce( 'wpda_health_start' ),
+				'stepNonce'  => wp_create_nonce( 'wpda_health_step' ),
+				'i18n'       => array(
+					/* translators: 1: number of domains checked, 2: total number of domains. */
+					'progress' => __( 'Checked %1$d of %2$d domains…', 'wp-domain-alias' ),
+					'done'     => __( 'Health check complete.', 'wp-domain-alias' ),
+					'failed'   => __( 'The health check stopped. Reload the page to see the results so far.', 'wp-domain-alias' ),
+				),
+			)
+		);
 	}
 
 	/**
@@ -109,10 +130,8 @@ class Admin {
 		$this->authorize( 'save_settings' );
 		$settings = $this->domains->get_settings();
 		// phpcs:disable WordPress.Security.NonceVerification.Missing -- Verified in authorize().
-		$settings['enabled']        = ! empty( $_POST['wpda_enabled'] );
-		$settings['diagnostics']    = ! empty( $_POST['wpda_diagnostics'] );
-		$mode                       = isset( $_POST['wpda_canonical_mode'] ) ? sanitize_key( wp_unslash( $_POST['wpda_canonical_mode'] ) ) : '';
-		$settings['canonical_mode'] = Domain_Manager::CANONICAL_ALIAS === $mode ? Domain_Manager::CANONICAL_ALIAS : Domain_Manager::CANONICAL_PRIMARY;
+		$settings['enabled']     = ! empty( $_POST['wpda_enabled'] );
+		$settings['diagnostics'] = ! empty( $_POST['wpda_diagnostics'] );
 		// phpcs:enable
 		$this->domains->save( $settings );
 		$this->add_notice( 'success', __( 'Settings saved. If you use a page cache, purge it so every domain gets fresh pages.', 'wp-domain-alias' ) );
@@ -196,19 +215,126 @@ class Admin {
 	public function handle_health_check() {
 		$this->authorize( 'health_check' );
 		$user = get_current_user_id();
-		if ( ! $this->health->acquire_rate_limit( $user ) ) {
+		if ( false === $this->health->start_run( $user ) ) {
 			$this->add_notice( 'warning', __( 'A health check ran a few seconds ago. Please wait before running it again.', 'wp-domain-alias' ) );
 			$this->back();
 		}
-		set_transient(
-			'wpda_health_' . $user,
-			array(
-				'time'   => time(),
-				'remote' => $this->health->run_remote_checks(),
-			),
-			5 * MINUTE_IN_SECONDS
-		);
+		$this->step_and_return( $user );
+	}
+
+	/**
+	 * One-time notice after a 0.1.0-beta "alias canonical" setting was migrated.
+	 *
+	 * @return void
+	 */
+	public function canonical_notice() {
+		if ( ! current_user_can( self::CAPABILITY ) || ! get_option( Domain_Manager::CANONICAL_NOTICE_OPTION ) ) {
+			return;
+		}
+		echo '<div class="notice notice-warning"><p><strong>' . esc_html__( 'WP Domain Alias:', 'wp-domain-alias' ) . '</strong> ';
+		echo esc_html__( 'The "point canonical URLs to the alias" setting was removed in 0.1.1-beta. Canonical URLs on alias pages now point to the primary domain, matching the sitemaps and structured data. Review your search engine setup if you relied on alias canonicals.', 'wp-domain-alias' ) . '</p>';
+		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" style="margin:0 0 8px">';
+		wp_nonce_field( 'wpda_dismiss_canonical_notice' );
+		echo '<input type="hidden" name="action" value="wpda_dismiss_canonical_notice">';
+		submit_button( __( 'Dismiss', 'wp-domain-alias' ), 'secondary small', 'submit', false );
+		echo '</form></div>';
+	}
+
+	/**
+	 * Dismisses the canonical migration notice.
+	 *
+	 * @return void
+	 */
+	public function handle_dismiss_canonical_notice() {
+		$this->authorize( 'dismiss_canonical_notice' );
+		delete_option( Domain_Manager::CANONICAL_NOTICE_OPTION );
+		$this->back();
+	}
+
+	/**
+	 * Checks the next batch of an existing run (no-JavaScript path).
+	 *
+	 * @return void
+	 */
+	public function handle_health_continue() {
+		$this->authorize( 'health_continue' );
+		$this->step_and_return( get_current_user_id() );
+	}
+
+	/**
+	 * Runs one batch of the user's health check and returns to the page.
+	 *
+	 * @param int $user User ID.
+	 * @return void
+	 */
+	private function step_and_return( $user ) {
+		$run = $this->health->run_step( $user, Health_Check::BATCH_SIZE );
+		if ( is_wp_error( $run ) ) {
+			$this->add_notice( 'warning', $run->get_error_message() );
+		}
 		$this->back( '#wpda-health' );
+	}
+
+	/**
+	 * AJAX: starts a run and returns its size.
+	 *
+	 * @return void
+	 */
+	public function ajax_health_start() {
+		$this->authorize_ajax( 'wpda_health_start' );
+		$run = $this->health->start_run( get_current_user_id() );
+		if ( false === $run ) {
+			wp_send_json_error( array( 'message' => __( 'A health check ran a few seconds ago. Please wait before running it again.', 'wp-domain-alias' ) ), 429 );
+		}
+		wp_send_json_success(
+			array(
+				'run'   => $run['id'],
+				'total' => count( $run['hosts'] ),
+			)
+		);
+	}
+
+	/**
+	 * AJAX: checks the next host of a run and returns its rendered result.
+	 *
+	 * @return void
+	 */
+	public function ajax_health_step() {
+		$this->authorize_ajax( 'wpda_health_step' );
+		$run_id = isset( $_POST['run'] ) ? sanitize_key( wp_unslash( $_POST['run'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Verified in authorize_ajax().
+		$before = $this->health->get_run( get_current_user_id() );
+		$run    = $this->health->run_step( get_current_user_id(), 1, $run_id );
+		if ( is_wp_error( $run ) ) {
+			wp_send_json_error( array( 'message' => $run->get_error_message() ), 'wpda_busy' === $run->get_error_code() ? 409 : 410 );
+		}
+		$new = array_slice( $run['results'], null === $before ? 0 : count( $before['results'] ) );
+		ob_start();
+		foreach ( $new as $result ) {
+			$this->render_host_result( $result );
+		}
+		wp_send_json_success(
+			array(
+				'html'    => ob_get_clean(),
+				'checked' => count( $run['results'] ),
+				'total'   => count( $run['hosts'] ),
+				'done'    => Health_Check::is_complete( $run ),
+			)
+		);
+	}
+
+	/**
+	 * Capability and nonce check for AJAX handlers.
+	 *
+	 * @param string $action Nonce action.
+	 * @return void
+	 */
+	private function authorize_ajax( $action ) {
+		if ( ! current_user_can( self::CAPABILITY ) ) {
+			wp_send_json_error( array( 'message' => __( 'Sorry, you are not allowed to do that.', 'wp-domain-alias' ) ), 403 );
+		}
+		if ( ! check_ajax_referer( $action, 'nonce', false ) ) {
+			wp_send_json_error( array( 'message' => __( 'The link you followed has expired. Reload the page and try again.', 'wp-domain-alias' ) ), 403 );
+		}
 	}
 
 	/**
@@ -223,10 +349,7 @@ class Admin {
 		$settings = $this->domains->get_settings();
 		$primary  = $this->domains->primary_host();
 		$user     = get_current_user_id();
-		$health   = get_transient( 'wpda_health_' . $user );
-		if ( false !== $health ) {
-			delete_transient( 'wpda_health_' . $user );
-		}
+		$health   = $this->health->get_run( $user );
 
 		echo '<div class="wrap wpda">';
 		echo '<h1>' . esc_html__( 'WP Domain Alias', 'wp-domain-alias' ) . '</h1>';
@@ -296,11 +419,10 @@ class Admin {
 
 		echo '<tr><th scope="row">' . esc_html__( 'Hostname preservation', 'wp-domain-alias' ) . '</th><td><label><input type="checkbox" name="wpda_enabled" value="1"' . checked( $settings['enabled'], true, false ) . '> ' . esc_html__( 'Keep visitors on the alias domain they used', 'wp-domain-alias' ) . '</label></td></tr>';
 
-		echo '<tr><th scope="row">' . esc_html__( 'Canonical URLs', 'wp-domain-alias' ) . '</th><td><fieldset>';
-		echo '<label><input type="radio" name="wpda_canonical_mode" value="primary"' . checked( $settings['canonical_mode'], Domain_Manager::CANONICAL_PRIMARY, false ) . '> ' . esc_html__( 'Point to the primary domain (recommended)', 'wp-domain-alias' ) . '</label><br>';
-		echo '<label><input type="radio" name="wpda_canonical_mode" value="alias"' . checked( $settings['canonical_mode'], Domain_Manager::CANONICAL_ALIAS, false ) . '> ' . esc_html__( 'Point to the alias being viewed', 'wp-domain-alias' ) . '</label>';
-		echo '<p class="description">' . esc_html__( 'Applies to canonical tags, hreflang links and og:url on alias pages. Sitemaps and structured data always use the primary domain. Canonical tags are hints to search engines, not guarantees.', 'wp-domain-alias' ) . '</p>';
-		echo '</fieldset></td></tr>';
+		echo '<tr><th scope="row">' . esc_html__( 'Canonical URLs', 'wp-domain-alias' ) . '</th><td>';
+		echo '<p>' . esc_html__( 'Always the primary domain.', 'wp-domain-alias' ) . '</p>';
+		echo '<p class="description">' . esc_html__( 'On alias pages, canonical tags, hreflang links, og:url and twitter:url point to the same page on the primary domain, matching the sitemaps and structured data. Canonical tags are hints to search engines, not guarantees.', 'wp-domain-alias' ) . '</p>';
+		echo '</td></tr>';
 
 		echo '<tr><th scope="row">' . esc_html__( 'Diagnostics', 'wp-domain-alias' ) . '</th><td><label><input type="checkbox" name="wpda_diagnostics" value="1"' . checked( $settings['diagnostics'], true, false ) . '> ' . esc_html__( 'Add an X-WP-Domain-Alias header and an HTML comment on alias pages', 'wp-domain-alias' ) . '</label><p class="description">' . esc_html__( 'Useful when checking cache behaviour. Turn off when finished.', 'wp-domain-alias' ) . '</p></td></tr>';
 
@@ -328,21 +450,54 @@ class Admin {
 	 */
 	private function render_health( $health ) {
 		echo '<div class="wpda-card" id="wpda-health"><h2>' . esc_html__( 'Health check', 'wp-domain-alias' ) . '</h2>';
-		echo '<p>' . esc_html__( 'Requests the homepage of the primary domain and each alias from this server, without following redirects, and reports status, redirects, retained hostname and canonical URL. Nothing is changed.', 'wp-domain-alias' ) . '</p>';
-		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
+		echo '<p>' . esc_html__( 'Requests the homepage of the primary domain and each alias from this server, without following redirects, and reports status, redirects, retained hostname and canonical URL. Domains are checked a few at a time so no request runs long. Nothing is changed.', 'wp-domain-alias' ) . '</p>';
+		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" id="wpda-health-start">';
 		wp_nonce_field( 'wpda_health_check' );
 		echo '<input type="hidden" name="action" value="wpda_health_check">';
 		submit_button( __( 'Run health check', 'wp-domain-alias' ), 'secondary', 'submit', false );
 		echo '</form>';
+		echo '<p id="wpda-health-progress" class="wpda-progress" role="status" aria-live="polite">';
+		if ( is_array( $health ) && ! Health_Check::is_complete( $health ) ) {
+			/* translators: 1: number of domains checked, 2: total number of domains. */
+			echo esc_html( sprintf( __( 'Checked %1$d of %2$d domains.', 'wp-domain-alias' ), count( $health['results'] ), count( $health['hosts'] ) ) );
+		}
+		echo '</p>';
 
-		if ( is_array( $health ) && isset( $health['remote'] ) && is_array( $health['remote'] ) ) {
-			foreach ( $health['remote'] as $result ) {
-				echo '<h3>' . esc_html( $result['display'] ) . '</h3>';
-				$this->render_check_table( $result['checks'] );
+		echo '<div id="wpda-health-results">';
+		if ( is_array( $health ) ) {
+			foreach ( $health['results'] as $result ) {
+				$this->render_host_result( $result );
 			}
+		}
+		echo '</div>';
+
+		if ( is_array( $health ) && ! Health_Check::is_complete( $health ) ) {
+			echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" id="wpda-health-continue">';
+			wp_nonce_field( 'wpda_health_continue' );
+			echo '<input type="hidden" name="action" value="wpda_health_continue">';
+			$remaining = count( $health['hosts'] ) - count( $health['results'] );
+			/* translators: %d: number of domains still to check. */
+			submit_button( sprintf( _n( 'Check the remaining %d domain', 'Check the next domains (%d remaining)', $remaining, 'wp-domain-alias' ), $remaining ), 'primary', 'submit', false );
+			echo '</form>';
+		}
+		if ( is_array( $health ) && ! empty( $health['results'] ) ) {
 			echo '<p class="description">' . esc_html__( 'These are server-side HTTP checks. They do not run JavaScript, submit forms or test the site in a browser. A page cache may answer some requests.', 'wp-domain-alias' ) . '</p>';
 		}
 		echo '</div>';
+	}
+
+	/**
+	 * One domain's health check results.
+	 *
+	 * @param array $result Result row.
+	 * @return void
+	 */
+	private function render_host_result( $result ) {
+		if ( ! is_array( $result ) || ! isset( $result['display'], $result['checks'] ) || ! is_array( $result['checks'] ) ) {
+			return;
+		}
+		echo '<h3>' . esc_html( $result['display'] ) . '</h3>';
+		$this->render_check_table( $result['checks'] );
 	}
 
 	/**

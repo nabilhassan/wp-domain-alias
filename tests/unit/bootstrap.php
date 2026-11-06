@@ -55,6 +55,7 @@ function wpda_test_reset() {
 	$GLOBALS['http_responder'] = null;
 	$GLOBALS['redirects']      = array();
 	$GLOBALS['multisite']      = false;
+	$GLOBALS['dns']            = array(); // host => IPs; hosts not listed resolve to a public test address.
 	$_SERVER['HTTP_HOST']      = 'primary.example';
 	$_SERVER['REQUEST_URI']    = '/';
 	$_SERVER['REQUEST_METHOD'] = 'GET';
@@ -64,6 +65,16 @@ wpda_test_reset();
 
 class WPDA_Test_Die extends Exception {}
 class WPDA_Test_Exit extends Exception {}
+/** Thrown by wp_send_json_* so tests can inspect the reply. */
+class WPDA_Test_Json extends Exception {
+	public $reply;
+	public $status;
+	public function __construct( array $reply, $status ) {
+		parent::__construct( 'json' );
+		$this->reply  = $reply;
+		$this->status = $status;
+	}
+}
 
 class WP_Error {
 	private $code;
@@ -85,6 +96,24 @@ function add_filter( $tag, $cb, $priority = 10, $args = 1 ) {
 }
 function add_action( $tag, $cb, $priority = 10, $args = 1 ) { return add_filter( $tag, $cb, $priority, $args ); }
 function has_filter( $tag ) { return ! empty( $GLOBALS['wp_filters'][ $tag ] ); }
+function remove_filter( $tag, $cb, $priority = 10 ) {
+	if ( empty( $GLOBALS['wp_filters'][ $tag ][ $priority ] ) ) {
+		return false;
+	}
+	foreach ( $GLOBALS['wp_filters'][ $tag ][ $priority ] as $i => $entry ) {
+		if ( $entry[0] === $cb ) {
+			unset( $GLOBALS['wp_filters'][ $tag ][ $priority ][ $i ] );
+		}
+	}
+	if ( empty( $GLOBALS['wp_filters'][ $tag ][ $priority ] ) ) {
+		unset( $GLOBALS['wp_filters'][ $tag ][ $priority ] );
+	}
+	if ( empty( $GLOBALS['wp_filters'][ $tag ] ) ) {
+		unset( $GLOBALS['wp_filters'][ $tag ] );
+	}
+	return true;
+}
+function remove_action( $tag, $cb, $priority = 10 ) { return remove_filter( $tag, $cb, $priority ); }
 function apply_filters( $tag, $value, ...$rest ) {
 	if ( empty( $GLOBALS['wp_filters'][ $tag ] ) ) {
 		return $value;
@@ -163,6 +192,16 @@ function wp_safe_redirect( $location ) { $GLOBALS['redirects'][] = $location; re
 function deactivate_plugins( ...$a ) { $GLOBALS['deactivated'] = true; }
 function load_plugin_textdomain( ...$a ) { return true; }
 function wp_enqueue_style( ...$a ) {}
+function wp_enqueue_script( ...$a ) {}
+function wp_localize_script( ...$a ) {}
+function wp_create_nonce( $action ) { return 'nonce-' . $action; }
+function check_ajax_referer( $action, $arg = false, $die = true ) {
+	return isset( $_POST[ $arg ] ) && 'nonce-' . $action === $_POST[ $arg ];
+}
+function wp_send_json_success( $data = null, $status = null ) { throw new WPDA_Test_Json( array( 'success' => true, 'data' => $data ), $status ); }
+function wp_send_json_error( $data = null, $status = null ) { throw new WPDA_Test_Json( array( 'success' => false, 'data' => $data ), $status ); }
+function _n( $single, $plural, $n, $d = '' ) { return 1 === (int) $n ? $single : $plural; }
+function esc_html_e( $t, $d = '' ) { echo esc_html( $t ); }
 
 // ---------------------------------------------------------------------------
 // HTTP.
@@ -195,7 +234,6 @@ function wpda_components( array $settings = array(), $host = 'primary.example', 
 		array(
 			'enabled'        => true,
 			'aliases'        => array( 'alias-one.example', 'alias-two.example', 'www.alias-two.example' ),
-			'canonical_mode' => 'primary',
 			'diagnostics'    => false,
 		),
 		$settings
@@ -211,6 +249,15 @@ function wpda_components( array $settings = array(), $host = 'primary.example', 
 	$c->redirects = new WP_Domain_Alias\Redirect_Handler( $c->domains, $c->urls );
 	$c->health    = new WP_Domain_Alias\Health_Check( $c->domains );
 	$c->links->register();
+	// Unit tests never use real DNS: hosts resolve from $GLOBALS['dns'].
+	add_filter(
+		'wp_domain_alias_health_check_ips',
+		function ( $ips, $host ) {
+			return array_key_exists( $host, $GLOBALS['dns'] ) ? $GLOBALS['dns'][ $host ] : array( '93.184.215.14' );
+		},
+		10,
+		2
+	);
 	return $c;
 }
 

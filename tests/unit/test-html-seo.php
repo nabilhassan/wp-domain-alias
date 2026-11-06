@@ -127,12 +127,16 @@ group( 'Seo_Handler' );
 $c = wpda_components( array(), 'alias-one.example', '/about/' );
 same( $c->seo->filter_url( 'https://alias-one.example/about/' ), 'https://primary.example/about/', 'primary mode: canonical filters return primary' );
 same( $c->seo->filter_url( 'https://other.example/x/' ), 'https://other.example/x/', 'deliberate cross-domain canonical kept' );
+// A 0.1.0-beta site that stored "alias" canonicals gets the primary policy, before and after migration.
 $c = wpda_components( array( 'canonical_mode' => 'alias' ), 'alias-one.example', '/about/' );
-same( $c->seo->filter_url( 'https://primary.example/about/' ), 'https://alias-one.example/about/', 'alias mode: canonical on alias' );
+same( $c->seo->filter_url( 'https://primary.example/about/' ), 'https://primary.example/about/', 'legacy alias setting: canonical filters return primary' );
+same( $c->seo->filter_url( 'https://www.alias-two.example/about/' ), 'https://primary.example/about/', 'canonical on another alias moves to primary' );
 $out = $c->links->rewrite_html( $page );
-ok( false !== strpos( $out, '<link rel="canonical" href="https://alias-one.example/about/">' ), 'alias mode: canonical tag' );
-ok( false !== strpos( $out, 'hreflang="en" href="https://alias-one.example/about/"' ), 'alias mode: hreflang' );
-ok( false !== strpos( $out, '{"url":"https://primary.example/about/"' ), 'alias mode: JSON-LD still untouched' );
+ok( false !== strpos( $out, '<link rel="canonical" href="https://primary.example/about/">' ), 'legacy alias setting: canonical tag on primary' );
+ok( false !== strpos( $out, 'hreflang="es" href="https://primary.example/es/sobre/"' ) && false !== strpos( $out, 'hreflang="en" href="https://primary.example/about/"' ), 'legacy alias setting: hreflang on primary' );
+ok( false !== strpos( $out, 'property="og:url" content="https://primary.example/about/"' ), 'legacy alias setting: og:url on primary' );
+ok( false !== strpos( $out, '{"url":"https://primary.example/about/"' ), 'JSON-LD untouched' );
+same( substr_count( $out, 'rel="canonical"' ), 1, 'exactly one canonical tag' );
 $c = wpda_components( array(), 'primary.example', '/about/' );
 same( $c->seo->filter_url( 'https://alias-one.example/about/' ), 'https://alias-one.example/about/', 'primary host requests are not filtered' );
 $dup = '<link rel="canonical" href="https://primary.example/a/"><link rel="canonical" href="https://primary.example/a/">';
@@ -158,3 +162,41 @@ same( WP_Domain_Alias\Integrations\Weglot::language_path( '/es/x/' ), '', 'origi
 $GLOBALS['weglot_lang'] = 'es';
 $out = apply_filters( 'weglot_render_dom', '<link rel="canonical" href="https://other.example/page/"><a href="https://primary.example/">x</a>' );
 ok( false !== strpos( $out, 'href="https://other.example/page/"' ), 'external canonical is not overridden' );
+
+group( 'admin-post.php forms (opt-in)' );
+$forms = '<form id="a" action="https://primary.example/wp-admin/admin-post.php" method="post"><input type="hidden" name="action" value="newsletter_signup"></form>'
+	. '<form id="b" action="https://primary.example/wp-admin/admin-post.php"><input type="hidden" name="action" value="other_action"></form>'
+	. '<form id="c" action="https://primary.example/wp-admin/admin-post.php?action=newsletter_signup&amp;x=1"></form>'
+	. '<form id="d" action="https://primary.example/wp-admin/options.php"><input type="hidden" name="action" value="newsletter_signup"></form>'
+	. '<form id="e" action="https://primary.example/contact/"><input name="action" value="newsletter_signup"></form>'
+	. '<a href="https://primary.example/wp-admin/admin-post.php?action=newsletter_signup">link</a>';
+$c   = wpda_components( array(), 'alias-one.example', '/' );
+$out = $c->links->rewrite_html( $forms );
+same( substr_count( $out, 'https://primary.example/wp-admin/admin-post.php' ), 4, 'default: every admin-post.php form and link stays on primary' );
+add_filter( 'wp_domain_alias_admin_post_actions', function ( $a ) { $a[] = 'newsletter_signup'; $a[] = 'Bad Action!'; $a[] = array(); return $a; } );
+same( $c->urls->admin_post_actions(), array( 'newsletter_signup' ), 'opt-in list keeps only valid action keys' );
+$out = $c->links->rewrite_html( $forms );
+ok( false !== strpos( $out, 'id="a" action="https://alias-one.example/wp-admin/admin-post.php"' ), 'opted-in action (hidden field) posts on the alias' );
+ok( false !== strpos( $out, 'id="b" action="https://primary.example/wp-admin/admin-post.php"' ), 'other actions stay on primary' );
+ok( false !== strpos( $out, 'id="c" action="https://alias-one.example/wp-admin/admin-post.php?action=newsletter_signup' ), 'opted-in action in the query string' );
+ok( false !== strpos( $out, 'id="d" action="https://primary.example/wp-admin/options.php"' ), 'other admin endpoints never move, whatever the action field' );
+ok( false !== strpos( $out, 'href="https://primary.example/wp-admin/admin-post.php?action=newsletter_signup"' ), 'links to admin-post.php are not moved' );
+same( $c->urls->to_alias( 'https://primary.example/wp-admin/admin-post.php' ), 'https://primary.example/wp-admin/admin-post.php', 'to_alias keeps admin-post.php unless explicitly allowed' );
+same( $c->urls->to_alias( 'https://primary.example/wp-admin/admin-post.php/../options.php', false, true ), 'https://primary.example/wp-admin/admin-post.php/../options.php', 'admin-post exception is an exact path match' );
+
+group( 'admin-post.php redirects (opt-in)' );
+$c = wpda_components( array(), 'alias-one.example', '/wp-admin/admin-post.php' );
+$_REQUEST = array( 'action' => 'newsletter_signup' );
+same( $c->redirects->wp_redirect( 'https://primary.example/newsletter/?sent=1' ), 'https://primary.example/newsletter/?sent=1', 'not opted in: redirect unchanged' );
+add_filter( 'wp_domain_alias_admin_post_actions', function () { return array( 'newsletter_signup' ); } );
+same( $c->redirects->wp_redirect( 'https://primary.example/newsletter/?sent=1' ), 'https://alias-one.example/newsletter/?sent=1', 'opted-in action redirects back to the alias' );
+same( $c->redirects->wp_redirect( 'https://evil.example/' ), 'https://evil.example/', 'external redirect targets untouched' );
+same( $c->redirects->wp_redirect( 'https://primary.example/wp-admin/' ), 'https://primary.example/wp-admin/', 'admin targets stay on primary' );
+$_REQUEST = array( 'action' => 'other_action' );
+same( $c->redirects->wp_redirect( 'https://primary.example/x/' ), 'https://primary.example/x/', 'other actions unchanged' );
+$_REQUEST = array( 'action' => array( 'newsletter_signup' ) );
+same( $c->redirects->wp_redirect( 'https://primary.example/x/' ), 'https://primary.example/x/', 'array action ignored' );
+wpda_host( $c, 'primary.example' );
+$_REQUEST = array( 'action' => 'newsletter_signup' );
+same( $c->redirects->wp_redirect( 'https://primary.example/x/' ), 'https://primary.example/x/', 'primary-host request unchanged' );
+$_REQUEST = array();

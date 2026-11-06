@@ -199,10 +199,10 @@ describe('settings change behaviour', () => {
     const r = await request('alias-one.test', '/about/');
     assert.ok(!navigationUrls(r.body, 'http://alias-one.test/').some(n => n.url.hostname === 'alias-one.test'));
   });
-  test('alias canonical mode', async () => {
+  test('a stored 0.1.0-beta "alias" canonical setting still yields one primary canonical', async () => {
     setSettings({ canonical_mode: 'alias' });
     const r = await request('alias-two.test', '/about/');
-    assert.deepEqual(canonicals(r.body), ['http://alias-two.test/about/']);
+    assert.deepEqual(canonicals(r.body), [`http://${PRIMARY}/about/`]);
   });
   test('diagnostics header and comment', async () => {
     setSettings({ diagnostics: true });
@@ -258,6 +258,17 @@ describe('admin screen (authenticated, primary host)', () => {
     assert.equal(r.status, 403);
     assert.ok(!wp('option', 'get', 'wp_domain_alias_settings', '--format=json').includes('forged.test'));
   });
+  test('legacy "alias" canonical setting is migrated on the first admin request, with a dismissible notice', async () => {
+    setSettings({ aliases: ['alias-one.test'], canonical_mode: 'alias' });
+    let html = (await page()).body;
+    assert.ok(!('canonical_mode' in JSON.parse(wp('option', 'get', 'wp_domain_alias_settings', '--format=json'))), 'key removed');
+    assert.match(html, /was removed in 0\.1\.1-beta/);
+    const r = await post({ action: 'wpda_dismiss_canonical_notice', _wpnonce: nonce(html, 'wpda_dismiss_canonical_notice') });
+    assert.equal(r.status, 302);
+    html = (await page()).body;
+    assert.doesNotMatch(html, /was removed in 0\.1\.1-beta/);
+    assert.doesNotMatch(html, /wpda_canonical_mode/, 'no canonical mode control');
+  });
   test('health check runs and reports per domain', async () => {
     setSettings({ aliases: ['alias-one.test', 'unresolvable.invalid'] });
     wp('transient', 'delete', 'wpda_hc_lock_1'); // per-user rate limit from an earlier run
@@ -268,7 +279,7 @@ describe('admin screen (authenticated, primary host)', () => {
     const section = result.slice(result.indexOf('id="wpda-health"'));
     assert.match(section, /<h3>alias-one\.test<\/h3>/);
     assert.match(section, /Internal links stay on this domain/);
-    assert.match(section, /<h3>unresolvable\.invalid<\/h3>[\s\S]*?does not resolve, or it resolves to a private/);
+    assert.match(section, /<h3>unresolvable\.invalid<\/h3>[\s\S]*?does not resolve/);
     assert.ok(!/127\.0\.0\.1/.test(section), 'request input is not used as a destination');
   });
 });

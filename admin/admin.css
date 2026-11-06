@@ -17,3 +17,6 @@
 	.wpda .wpda-checks th { width: auto; }
 	.wpda .wpda-add .regular-text { width: 100%; margin-bottom: 8px; }
 }
+.wpda .wpda-progress:empty { display: none; }
+.wpda .wpda-progress { font-weight: 600; }
+.wpda #wpda-health-continue { margin: 12px 0; }
