@@ -60,6 +60,7 @@ Every scenario checks the critical property: **a hostname never receives another
 - Its own purge actions only clear the primary hostname's copies. WP Domain Alias repeats every Cache Enabler purge for each alias. It also clears every alias copy, once per request, when posts, comments, terms, menus, the theme, plugins or its own settings change. Autosaves and revisions don't trigger this.
 - Alias copies are therefore never older than the primary copy. After a menu change, the primary copy may still be the old one, because Cache Enabler only clears the saved post's page by default. Clear the whole cache after menu changes, or enable **Clear the site cache if any post type has been published, updated, or trashed** in Cache Enabler.
 - Removing an alias also clears that alias's cached pages.
+- Cache Enabler stores its settings in a PHP file. With PHP's default opcache settings (`opcache.revalidate_freq=2`), a change to Cache Enabler's settings takes up to 2 seconds to apply.
 - Known gap: a manual "Clear cache" when no primary-domain copy is cached may not reach alias copies. Cache Enabler only reports a purge when it deleted something on the primary host. Enable **Expiration** in the Cache Enabler settings as a safety net; the configuration status card reminds you when it is off.
 
 ## Nginx FastCGI cache

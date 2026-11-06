@@ -154,6 +154,10 @@ describe('Cache Enabler page cache', () => {
   test('expired copies are regenerated per host, never served across hosts', async () => {
     const settings = JSON.parse(wp('option', 'get', 'cache_enabler', '--format=json'));
     wp('option', 'update', 'cache_enabler', JSON.stringify({ ...settings, cache_expires: 1, cache_expiry_time: 1 }), '--format=json');
+    // Cache Enabler keeps its settings in a PHP file. With opcache's default
+    // opcache.revalidate_freq=2, requests keep the old compiled settings for
+    // up to 2 s after the file changes (on the built-in server and on FPM).
+    await new Promise(res => setTimeout(res, 2500));
     try {
       wp('cache-enabler', 'clear');
       for (const host of [PRIMARY, 'alias-one.test']) {
