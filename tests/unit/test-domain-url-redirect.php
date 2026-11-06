@@ -28,7 +28,7 @@ for ( $i = 0; $i < 40; $i++ ) { $many[] = "a$i.example"; }
 $c = wpda_components( array( 'aliases' => $many ) );
 same( count( $c->domains->aliases() ), Domain_Manager::MAX_ALIASES, 'alias count is capped' );
 $c = wpda_components( array( 'canonical_mode' => 'something-else' ) );
-same( $c->domains->canonical_mode(), 'primary', 'unknown canonical mode falls back to primary' );
+ok( ! array_key_exists( 'canonical_mode', $c->domains->get_settings() ), 'removed canonical_mode key is dropped on read' );
 $GLOBALS['wp_options']['wp_domain_alias_settings'] = 'corrupted';
 $c->domains->reset();
 same( $c->domains->get_settings(), Domain_Manager::defaults(), 'corrupted option falls back to defaults' );

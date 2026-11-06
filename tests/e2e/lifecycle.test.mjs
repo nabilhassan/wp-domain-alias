@@ -46,7 +46,7 @@ describe('regular plugin lifecycle', () => {
     assert.ok(await row.getByRole('link', { name: 'Settings' }).isVisible(), 'Settings link on the plugin row');
     await browser.close();
     assert.equal(wp('plugin', 'get', 'wp-domain-alias', '--field=status'), 'active');
-    assert.deepEqual(option(), { enabled: true, aliases: [], canonical_mode: 'primary', diagnostics: false }, 'safe defaults stored');
+    assert.deepEqual(option(), { enabled: true, aliases: [], diagnostics: false }, 'safe defaults stored');
   });
   test('works after configuration', async () => {
     setSettings({ aliases: ['alias-one.test'] });

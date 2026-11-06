@@ -22,8 +22,8 @@ jobs:
       matrix:
         php: ['7.4', '8.0', '8.1', '8.2', '8.3', '8.4']
     steps:
-      - uses: actions/checkout@v4
-      - uses: shivammathur/setup-php@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: ${{ matrix.php }}
           coverage: none
@@ -35,8 +35,8 @@ jobs:
     name: Coding standards
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: shivammathur/setup-php@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: '8.3'
           coverage: none
@@ -52,8 +52,8 @@ jobs:
       matrix:
         php: ['7.4', '8.4']
     steps:
-      - uses: actions/checkout@v4
-      - uses: shivammathur/setup-php@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: ${{ matrix.php }}
           extensions: intl, mbstring
@@ -77,19 +77,19 @@ jobs:
         include:
           - wp: latest
             plugins: polylang contact-form-7 elementor wordpress-seo seo-by-rank-math cache-enabler
-            suites: tests/e2e/integration.test.mjs tests/e2e/compat.test.mjs tests/e2e/cache.test.mjs
+            suites: tests/e2e/integration.test.mjs tests/e2e/compat.test.mjs tests/e2e/cache.test.mjs tests/e2e/health.test.mjs
           - wp: '6.4.5'
             plugins: ''
-            suites: tests/e2e/integration.test.mjs
+            suites: tests/e2e/integration.test.mjs tests/e2e/health.test.mjs
     steps:
-      - uses: actions/checkout@v4
-      - uses: shivammathur/setup-php@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: '8.3'
           extensions: intl, mbstring, pdo_sqlite, sqlite3, zip
           coverage: none
           tools: none
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '20'
           cache: npm
@@ -116,14 +116,14 @@ jobs:
       WPDA_DIR: ${{ github.workspace }}/.wp-test-lifecycle
       WPDA_PORT: '8892'
     steps:
-      - uses: actions/checkout@v4
-      - uses: shivammathur/setup-php@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: '8.3'
           extensions: intl, mbstring, pdo_sqlite, sqlite3, zip
           coverage: none
           tools: none
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '20'
           cache: npm

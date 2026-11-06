@@ -7,6 +7,7 @@
 #   WP_VERSION   default "latest"
 #   WPDA_PORT    default 8890
 #   WPDA_DIR     default <repo>/.wp-test
+#   WPDA_SCHEME  "https" for an HTTPS site (served by tests/hosting/stack.sh)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -15,10 +16,13 @@ shift || true
 PLUGINS=("$@")
 DIR="${WPDA_DIR:-$ROOT/.wp-test}"
 PORT="${WPDA_PORT:-8890}"
+SCHEME="${WPDA_SCHEME:-http}"
 WP="$DIR/wordpress"
 CLI="$DIR/wp-cli.phar"
 
 mkdir -p "$DIR/cache"
+# Reuse downloads from the main test site, if there is one.
+[ "$DIR" != "$ROOT/.wp-test" ] && [ -d "$ROOT/.wp-test/cache" ] && cp -n "$ROOT/.wp-test/cache/"* "$DIR/cache/" 2>/dev/null || true
 fetch() { # url dest
 	[ -s "$2" ] || curl -fsSL --retry 3 -o "$2.part" "$1" && { [ -s "$2" ] || mv "$2.part" "$2"; }
 }
@@ -57,8 +61,8 @@ file_put_contents($f, $c);
 
 wp core install --title="WP Domain Alias Test" --admin_user=admin --admin_password=password \
 	--admin_email=admin@primary.test --skip-email
-wp option update home 'http://primary.test' >/dev/null
-wp option update siteurl 'http://primary.test' >/dev/null
+wp option update home "$SCHEME://primary.test" >/dev/null
+wp option update siteurl "$SCHEME://primary.test" >/dev/null
 wp rewrite structure '/%postname%/' >/dev/null
 wp option update blogdescription "Local test site" >/dev/null
 

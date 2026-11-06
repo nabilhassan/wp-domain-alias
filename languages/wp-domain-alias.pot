@@ -2,23 +2,23 @@
 # This file is distributed under the GPL-2.0-or-later.
 msgid ""
 msgstr ""
-"Project-Id-Version: WP Domain Alias 0.1.0-beta\n"
-"Report-Msgid-Bugs-To: https://github.com/nabilhassan/wp-domain-alias/issues\n"
+"Project-Id-Version: WP Domain Alias 0.1.1-beta\n"
+"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/wp-domain-alias\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-11-06T09:18:40+00:00\n"
+"POT-Creation-Date: 2026-11-06T13:52:49+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: wp-domain-alias\n"
 
 #. Plugin Name of the plugin
 #: wp-domain-alias.php
-#: includes/class-admin.php:69
-#: includes/class-admin.php:70
-#: includes/class-admin.php:232
+#: includes/class-admin.php:74
+#: includes/class-admin.php:75
+#: includes/class-admin.php:355
 msgid "WP Domain Alias"
 msgstr ""
 
@@ -29,7 +29,7 @@ msgstr ""
 
 #. Description of the plugin
 #: wp-domain-alias.php
-msgid "Show one WordPress site on additional approved domains while keeping visitors on the domain they entered. Canonical URLs stay on the primary domain by default."
+msgid "Show one WordPress site on additional approved domains while keeping visitors on the domain they entered. Canonical URLs stay on the primary domain."
 msgstr ""
 
 #. Author of the plugin
@@ -42,443 +42,500 @@ msgstr ""
 msgid "https://github.com/nabilhassan"
 msgstr ""
 
-#: includes/class-admin.php:98
-#: includes/class-admin.php:291
+#. translators: 1: number of domains checked, 2: total number of domains.
+#: includes/class-admin.php:103
+#, php-format
+msgid "Checked %1$d of %2$d domains…"
+msgstr ""
+
+#: includes/class-admin.php:104
+msgid "Health check complete."
+msgstr ""
+
+#: includes/class-admin.php:105
+msgid "The health check stopped. Reload the page to see the results so far."
+msgstr ""
+
+#: includes/class-admin.php:119
+#: includes/class-admin.php:414
 msgid "Settings"
 msgstr ""
 
-#: includes/class-admin.php:118
+#: includes/class-admin.php:137
 msgid "Settings saved. If you use a page cache, purge it so every domain gets fresh pages."
 msgstr ""
 
-#: includes/class-admin.php:143
+#: includes/class-admin.php:162
 msgid "That is the primary domain. It is managed under Settings → General and does not need to be added."
 msgstr ""
 
 #. translators: %s: hostname.
-#: includes/class-admin.php:146
+#: includes/class-admin.php:165
 #, php-format
 msgid "%s is already an alias."
 msgstr ""
 
 #. translators: %d: maximum number of aliases.
-#: includes/class-admin.php:149
+#: includes/class-admin.php:168
 #, php-format
 msgid "You can add up to %d aliases."
 msgstr ""
 
-#: includes/class-admin.php:157
+#: includes/class-admin.php:176
 msgid "This is the www/non-www form of the primary domain. Many hosts redirect it at server level, which this plugin cannot override."
 msgstr ""
 
 #. translators: %s: hostname.
-#: includes/class-admin.php:162
+#: includes/class-admin.php:181
 #, php-format
 msgid "%s was added. Make sure the domain points to this site and has HTTPS, then run the health check."
 msgstr ""
 
-#: includes/class-admin.php:180
+#: includes/class-admin.php:199
 msgid "That alias was not found."
 msgstr ""
 
 #. translators: %s: hostname.
-#: includes/class-admin.php:186
+#: includes/class-admin.php:205
 #, php-format
 msgid "%s was removed. Requests on that domain now show primary-domain links."
 msgstr ""
 
-#: includes/class-admin.php:200
+#: includes/class-admin.php:219
+#: includes/class-admin.php:287
 msgid "A health check ran a few seconds ago. Please wait before running it again."
 msgstr ""
 
-#: includes/class-admin.php:221
+#: includes/class-admin.php:234
+msgid "WP Domain Alias:"
+msgstr ""
+
+#: includes/class-admin.php:235
+msgid "The \"point canonical URLs to the alias\" setting was removed in 0.1.1-beta. Canonical URLs on alias pages now point to the primary domain, matching the sitemaps and structured data. Review your search engine setup if you relied on alias canonicals."
+msgstr ""
+
+#: includes/class-admin.php:239
+msgid "Dismiss"
+msgstr ""
+
+#: includes/class-admin.php:333
+#: includes/class-admin.php:592
+msgid "Sorry, you are not allowed to do that."
+msgstr ""
+
+#: includes/class-admin.php:336
+msgid "The link you followed has expired. Reload the page and try again."
+msgstr ""
+
+#: includes/class-admin.php:347
 msgid "Sorry, you are not allowed to access this page."
 msgstr ""
 
-#: includes/class-admin.php:233
+#: includes/class-admin.php:356
 msgid "Show this site on additional domains while keeping visitors on the domain they typed. Content, database and the WordPress address stay the same."
 msgstr ""
 
-#: includes/class-admin.php:252
+#: includes/class-admin.php:375
 msgid "Domains"
 msgstr ""
 
-#: includes/class-admin.php:253
+#: includes/class-admin.php:376
 msgid "Domain"
 msgstr ""
 
-#: includes/class-admin.php:253
+#: includes/class-admin.php:376
 msgid "Role"
 msgstr ""
 
-#: includes/class-admin.php:253
+#: includes/class-admin.php:376
 msgid "Actions"
 msgstr ""
 
-#: includes/class-admin.php:254
+#: includes/class-admin.php:377
 msgid "Primary (from Settings → General, read-only)"
 msgstr ""
 
-#: includes/class-admin.php:261
+#: includes/class-admin.php:384
 msgid "Alias"
 msgstr ""
 
 #. translators: %s: hostname.
-#: includes/class-admin.php:266
+#: includes/class-admin.php:389
 #, php-format
 msgid "Remove %s"
 msgstr ""
 
 #. translators: %s: hostname.
-#: includes/class-admin.php:266
+#: includes/class-admin.php:389
 msgid "Remove"
 msgstr ""
 
-#: includes/class-admin.php:269
+#: includes/class-admin.php:392
 msgid "No aliases yet."
 msgstr ""
 
-#: includes/class-admin.php:276
+#: includes/class-admin.php:399
 msgid "Add an alias"
 msgstr ""
 
-#: includes/class-admin.php:278
+#: includes/class-admin.php:401
 msgid "Add alias"
 msgstr ""
 
-#: includes/class-admin.php:279
+#: includes/class-admin.php:402
 msgid "Enter one domain, for example alias-example.com. www and non-www are separate domains: add each one visitors may use. Wildcards, IP addresses and ports are not accepted."
 msgstr ""
 
-#: includes/class-admin.php:280
+#: includes/class-admin.php:403
 msgid "The domain must already point to this site at your host (domain mapping, DNS and an HTTPS certificate). This plugin cannot set that up."
 msgstr ""
 
-#: includes/class-admin.php:297
-#: includes/class-health-check.php:80
+#: includes/class-admin.php:420
+#: includes/class-health-check.php:86
 msgid "Hostname preservation"
 msgstr ""
 
-#: includes/class-admin.php:297
+#: includes/class-admin.php:420
 msgid "Keep visitors on the alias domain they used"
 msgstr ""
 
-#: includes/class-admin.php:299
+#: includes/class-admin.php:422
 msgid "Canonical URLs"
 msgstr ""
 
-#: includes/class-admin.php:300
-msgid "Point to the primary domain (recommended)"
+#: includes/class-admin.php:423
+msgid "Always the primary domain."
 msgstr ""
 
-#: includes/class-admin.php:301
-msgid "Point to the alias being viewed"
+#: includes/class-admin.php:424
+msgid "On alias pages, canonical tags, hreflang links, og:url and twitter:url point to the same page on the primary domain, matching the sitemaps and structured data. Canonical tags are hints to search engines, not guarantees."
 msgstr ""
 
-#: includes/class-admin.php:302
-msgid "Applies to canonical tags, hreflang links and og:url on alias pages. Sitemaps and structured data always use the primary domain. Canonical tags are hints to search engines, not guarantees."
-msgstr ""
-
-#: includes/class-admin.php:305
+#: includes/class-admin.php:427
 msgid "Diagnostics"
 msgstr ""
 
-#: includes/class-admin.php:305
+#: includes/class-admin.php:427
 msgid "Add an X-WP-Domain-Alias header and an HTML comment on alias pages"
 msgstr ""
 
-#: includes/class-admin.php:305
+#: includes/class-admin.php:427
 msgid "Useful when checking cache behaviour. Turn off when finished."
 msgstr ""
 
-#: includes/class-admin.php:308
+#: includes/class-admin.php:430
 msgid "Save settings"
 msgstr ""
 
-#: includes/class-admin.php:318
+#: includes/class-admin.php:440
 msgid "Configuration status"
 msgstr ""
 
-#: includes/class-admin.php:330
+#: includes/class-admin.php:452
 msgid "Health check"
 msgstr ""
 
-#: includes/class-admin.php:331
-msgid "Requests the homepage of the primary domain and each alias from this server, without following redirects, and reports status, redirects, retained hostname and canonical URL. Nothing is changed."
+#: includes/class-admin.php:453
+msgid "Requests the homepage of the primary domain and each alias from this server, without following redirects, and reports status, redirects, retained hostname and canonical URL. Domains are checked a few at a time so no request runs long. Nothing is changed."
 msgstr ""
 
-#: includes/class-admin.php:335
+#: includes/class-admin.php:457
 msgid "Run health check"
 msgstr ""
 
-#: includes/class-admin.php:343
+#. translators: 1: number of domains checked, 2: total number of domains.
+#: includes/class-admin.php:462
+#, php-format
+msgid "Checked %1$d of %2$d domains."
+msgstr ""
+
+#. translators: %d: number of domains still to check.
+#: includes/class-admin.php:480
+#, php-format
+msgid "Check the remaining %d domain"
+msgid_plural "Check the next domains (%d remaining)"
+msgstr[0] ""
+msgstr[1] ""
+
+#: includes/class-admin.php:484
 msgid "These are server-side HTTP checks. They do not run JavaScript, submit forms or test the site in a browser. A page cache may answer some requests."
 msgstr ""
 
-#: includes/class-admin.php:357
+#: includes/class-admin.php:512
 msgid "Plugin version"
 msgstr ""
 
-#: includes/class-admin.php:358
+#: includes/class-admin.php:513
 msgid "Installed as"
 msgstr ""
 
-#: includes/class-admin.php:358
+#: includes/class-admin.php:513
 msgid "Must-Use plugin (cannot be deactivated from the Plugins screen)"
 msgstr ""
 
-#: includes/class-admin.php:358
+#: includes/class-admin.php:513
 msgid "Regular plugin"
 msgstr ""
 
-#: includes/class-admin.php:359
+#: includes/class-admin.php:514
 msgid "Requires"
 msgstr ""
 
-#: includes/class-admin.php:360
+#: includes/class-admin.php:515
 msgid "This site"
 msgstr ""
 
-#: includes/class-admin.php:361
+#: includes/class-admin.php:516
 msgid "Multisite"
 msgstr ""
 
-#: includes/class-admin.php:361
+#: includes/class-admin.php:516
 msgid "Not supported"
 msgstr ""
 
-#: includes/class-admin.php:363
+#: includes/class-admin.php:518
 msgid "About"
 msgstr ""
 
-#: includes/class-admin.php:368
+#: includes/class-admin.php:523
 msgid "Admin, login and other sensitive pages always stay on the primary domain. Checkout, membership and single sign-on flows on aliases are not supported."
 msgstr ""
 
-#: includes/class-admin.php:380
+#: includes/class-admin.php:535
 msgid "Pass"
 msgstr ""
 
-#: includes/class-admin.php:381
+#: includes/class-admin.php:536
 msgid "Warning"
 msgstr ""
 
-#: includes/class-admin.php:382
+#: includes/class-admin.php:537
 msgid "Fail"
 msgstr ""
 
-#: includes/class-admin.php:383
+#: includes/class-admin.php:538
 msgid "Info"
 msgstr ""
 
-#: includes/class-admin.php:437
-msgid "Sorry, you are not allowed to do that."
-msgstr ""
-
-#: includes/class-health-check.php:65
+#: includes/class-health-check.php:71
 msgid "WordPress version"
 msgstr ""
 
 #. translators: %s: WordPress version.
-#: includes/class-health-check.php:67
+#: includes/class-health-check.php:73
 #, php-format
 msgid "WordPress %s. Version 6.4 or newer is required."
 msgstr ""
 
-#: includes/class-health-check.php:73
+#: includes/class-health-check.php:79
 msgid "Inline font URLs"
 msgstr ""
 
-#: includes/class-health-check.php:74
+#: includes/class-health-check.php:80
 msgid "Theme and Font Library fonts are served from the alias. Fonts that other plugins print inline with a full primary-domain URL are only adjusted on WordPress 6.7 or newer; on older versions they may need a CORS header on the primary domain."
 msgstr ""
 
-#: includes/class-health-check.php:82
+#: includes/class-health-check.php:88
 msgid "Enabled."
 msgstr ""
 
-#: includes/class-health-check.php:83
+#: includes/class-health-check.php:89
 msgid "Disabled. Aliases show the site with primary-domain links."
 msgstr ""
 
-#: includes/class-health-check.php:88
-#: includes/class-health-check.php:244
+#: includes/class-health-check.php:94
+#: includes/class-health-check.php:353
 msgid "HTTPS"
 msgstr ""
 
-#: includes/class-health-check.php:90
+#: includes/class-health-check.php:96
 msgid "The site address uses HTTPS. Every alias needs its own valid certificate."
 msgstr ""
 
-#: includes/class-health-check.php:91
+#: includes/class-health-check.php:97
 msgid "The site address uses HTTP. HTTPS is strongly recommended for the primary domain and every alias."
 msgstr ""
 
-#: includes/class-health-check.php:98
+#: includes/class-health-check.php:104
 msgid "Admin address"
 msgstr ""
 
 #. translators: %s: WordPress address host.
-#: includes/class-health-check.php:100
+#: includes/class-health-check.php:106
 #, php-format
 msgid "The WordPress address uses %s. Admin and login stay there."
 msgstr ""
 
-#: includes/class-health-check.php:105
+#: includes/class-health-check.php:111
 msgid "Aliases"
 msgstr ""
 
-#: includes/class-health-check.php:105
+#: includes/class-health-check.php:111
 msgid "No aliases are configured yet."
 msgstr ""
 
-#: includes/class-health-check.php:112
+#: includes/class-health-check.php:118
 msgid "Redirect conflict"
 msgstr ""
 
 #. translators: %s: hostname.
-#: includes/class-health-check.php:114
+#: includes/class-health-check.php:120
 #, php-format
 msgid "%s is the www/non-www form of the primary domain. Most hosts redirect it at server level, which this plugin cannot override. Run the health check to confirm."
 msgstr ""
 
-#: includes/class-health-check.php:123
+#: includes/class-health-check.php:129
 msgid "www variant"
 msgstr ""
 
 #. translators: 1: configured alias, 2: its www/non-www counterpart.
-#: includes/class-health-check.php:125
+#: includes/class-health-check.php:131
 #, php-format
 msgid "%1$s is configured but %2$s is not. Add it too if visitors may use it."
 msgstr ""
 
-#: includes/class-health-check.php:133
+#: includes/class-health-check.php:139
 msgid "Cookie domain"
 msgstr ""
 
-#: includes/class-health-check.php:134
+#: includes/class-health-check.php:140
 msgid "COOKIE_DOMAIN is set in wp-config.php. Cookies set on alias pages will be ignored by browsers unless that constant is removed."
 msgstr ""
 
-#: includes/class-health-check.php:142
+#: includes/class-health-check.php:148
 msgid "Page cache"
 msgstr ""
 
 #. translators: %s: comma-separated plugin names.
-#: includes/class-health-check.php:144
+#: includes/class-health-check.php:150
 #, php-format
 msgid "Detected: %s. Make sure cached pages are stored separately per domain, then purge the cache after changing aliases. Run the health check to look for cross-domain cache mix-ups."
 msgstr ""
 
-#: includes/class-health-check.php:151
+#: includes/class-health-check.php:157
 msgid "Cache Enabler"
 msgstr ""
 
-#: includes/class-health-check.php:152
-msgid "Alias copies are cleared whenever content changes. As a safety net, enable \"Cache Expiry\" in Cache Enabler so alias pages can never stay stale indefinitely."
+#: includes/class-health-check.php:158
+msgid "Alias copies are cleared whenever content changes. As a safety net, enable \"Expiration\" in the Cache Enabler settings so alias pages can never stay stale indefinitely."
 msgstr ""
 
-#: includes/class-health-check.php:226
-#: includes/class-health-check.php:238
+#: includes/class-health-check.php:229
+msgid "This health check has expired. Start a new one."
+msgstr ""
+
+#: includes/class-health-check.php:233
+msgid "A health check step is already running. Please wait."
+msgstr ""
+
+#: includes/class-health-check.php:301
+#: includes/class-health-check.php:311
+#: includes/class-health-check.php:335
+#: includes/class-health-check.php:347
 msgid "Reachable"
 msgstr ""
 
+#: includes/class-health-check.php:301
+#: includes/class-health-check.php:559
+msgid "The domain does not resolve. Check its DNS records."
+msgstr ""
+
+#: includes/class-health-check.php:311
+msgid "Not checked: the domain resolves to a private or reserved network address. Requests to internal addresses are blocked."
+msgstr ""
+
 #. translators: %d: HTTP status code.
-#: includes/class-health-check.php:240
+#: includes/class-health-check.php:349
 #, php-format
 msgid "HTTP %d"
 msgstr ""
 
-#: includes/class-health-check.php:244
+#: includes/class-health-check.php:353
 msgid "Valid certificate."
 msgstr ""
 
-#: includes/class-health-check.php:251
-#: includes/class-health-check.php:259
+#: includes/class-health-check.php:360
+#: includes/class-health-check.php:368
 msgid "Redirects"
 msgstr ""
 
 #. translators: %s: redirect location.
-#: includes/class-health-check.php:254
+#: includes/class-health-check.php:363
 #, php-format
 msgid "Redirects within the same domain to %s."
 msgstr ""
 
 #. translators: %s: redirect location.
-#: includes/class-health-check.php:256
+#: includes/class-health-check.php:365
 #, php-format
 msgid "Redirects to another domain: %s. This is usually a hosting, CDN or redirect-plugin rule that must be removed for this alias."
 msgstr ""
 
-#: includes/class-health-check.php:259
+#: includes/class-health-check.php:368
 msgid "No redirect."
 msgstr ""
 
-#: includes/class-health-check.php:272
-#: includes/class-health-check.php:274
-#: includes/class-health-check.php:278
+#: includes/class-health-check.php:381
+#: includes/class-health-check.php:383
+#: includes/class-health-check.php:387
 msgid "Hostname retained"
 msgstr ""
 
-#: includes/class-health-check.php:272
+#: includes/class-health-check.php:381
 msgid "No internal links were found on the homepage to verify."
 msgstr ""
 
-#: includes/class-health-check.php:274
+#: includes/class-health-check.php:383
 msgid "Internal links stay on this domain."
 msgstr ""
 
 #. translators: %s: list of hosts.
-#: includes/class-health-check.php:280
+#: includes/class-health-check.php:389
 #, php-format
 msgid "Some internal links point to %s. If hostname preservation is enabled, a page cache may be serving another domain's copy of this page."
 msgstr ""
 
-#: includes/class-health-check.php:289
-#: includes/class-health-check.php:291
-#: includes/class-health-check.php:296
+#: includes/class-health-check.php:396
+#: includes/class-health-check.php:398
+#: includes/class-health-check.php:403
 msgid "Canonical"
 msgstr ""
 
-#: includes/class-health-check.php:289
+#: includes/class-health-check.php:396
 msgid "The homepage has no canonical tag."
 msgstr ""
 
-#: includes/class-health-check.php:291
+#: includes/class-health-check.php:398
 msgid "More than one canonical tag was found."
 msgstr ""
 
 #. translators: %s: canonical URL.
-#: includes/class-health-check.php:298
+#: includes/class-health-check.php:405
 #, php-format
 msgid "Canonical: %s"
 msgstr ""
 
-#: includes/class-health-check.php:344
+#: includes/class-health-check.php:544
 msgid "Not checked: outgoing requests are blocked by this site's configuration (WP_HTTP_BLOCK_EXTERNAL)."
 msgstr ""
 
-#: includes/class-health-check.php:349
+#: includes/class-health-check.php:549
 msgid "Not checked: the domain does not resolve, or it resolves to a private or reserved network address. Requests to internal addresses are blocked."
 msgstr ""
 
-#: includes/class-health-check.php:353
+#: includes/class-health-check.php:553
 msgid "The HTTPS certificate could not be verified for this domain."
 msgstr ""
 
-#: includes/class-health-check.php:356
+#: includes/class-health-check.php:556
 msgid "The request timed out."
 msgstr ""
 
-#: includes/class-health-check.php:359
-msgid "The domain does not resolve. Check its DNS records."
-msgstr ""
-
-#: includes/class-health-check.php:361
+#: includes/class-health-check.php:561
 msgid "The request did not complete. Check DNS, the hosting domain mapping and HTTPS."
 msgstr ""
 
-#: includes/class-health-check.php:388
+#: includes/class-health-check.php:588
 msgid "an advanced-cache drop-in (WP_CACHE is on)"
 msgstr ""
 
@@ -536,23 +593,23 @@ msgstr ""
 msgid "That is not a valid domain name. Use letters, numbers, hyphens and dots, for example \"example.com\"."
 msgstr ""
 
-#: includes/class-plugin.php:142
+#: includes/class-plugin.php:143
 msgid "WP Domain Alias does not support Multisite and is not doing anything on this network."
 msgstr ""
 
-#: includes/class-plugin.php:145
+#: includes/class-plugin.php:146
 msgid "WP Domain Alias needs WordPress 6.4 or newer. Links on alias domains are not being adjusted."
 msgstr ""
 
-#: includes/class-plugin.php:148
+#: includes/class-plugin.php:149
 msgid "WP Domain Alias is installed twice (for example as a Must-Use plugin and as a regular plugin). Only the first copy is running. Remove the other copy."
 msgstr ""
 
-#: includes/class-plugin.php:162
+#: includes/class-plugin.php:163
 msgid "WP Domain Alias does not support WordPress Multisite."
 msgstr ""
 
-#: includes/class-plugin.php:163
+#: includes/class-plugin.php:164
 msgid "Plugin not activated"
 msgstr ""
 

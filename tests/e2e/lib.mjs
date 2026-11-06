@@ -1,6 +1,8 @@
 // Shared helpers for the local integration and browser tests.
 // Everything targets the disposable site built by tests/e2e/setup-wp.sh.
 import http from 'node:http';
+import https from 'node:https';
+import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,6 +10,10 @@ import { fileURLToPath } from 'node:url';
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 export const DIR = process.env.WPDA_DIR || path.join(ROOT, '.wp-test');
 export const PORT = Number(process.env.WPDA_PORT || 8890);
+// WPDA_SCHEME=https runs the suites against a TLS server (tests/hosting/).
+// The test CA in WPDA_CA is trusted for these requests only.
+export const SCHEME = process.env.WPDA_SCHEME === 'https' ? 'https' : 'http';
+const CA = SCHEME === 'https' && process.env.WPDA_CA ? fs.readFileSync(process.env.WPDA_CA) : undefined;
 export const PRIMARY = 'primary.test';
 export const ALIASES = ['alias-one.test', 'alias-two.test', 'www.alias-two.test'];
 export const OWN = [PRIMARY, 'www.primary.test', ...ALIASES];
@@ -21,17 +27,22 @@ export function wp(...args) {
 }
 
 export function setSettings(settings) {
-  const value = { enabled: true, aliases: ALIASES, canonical_mode: 'primary', diagnostics: false, ...settings };
+  const value = { enabled: true, aliases: ALIASES, diagnostics: false, ...settings };
   wp('option', 'update', 'wp_domain_alias_settings', JSON.stringify(value), '--format=json');
 }
 
 /**
  * HTTP request to the local server with an explicit Host header.
+ * Over HTTPS the certificate is verified against WPDA_CA with SNI = host.
  * Returns { status, headers, body, cookies }.
  */
-export function request(host, pathname, { method = 'GET', headers = {}, body, port = PORT } = {}) {
+export function request(host, pathname, { method = 'GET', headers = {}, body, port = PORT, scheme = SCHEME } = {}) {
   return new Promise((resolve, reject) => {
-    const req = http.request({ host: '127.0.0.1', port, method, path: pathname, headers: { Host: host, ...headers }, timeout: 30000 }, res => {
+    // SNI is the requested host when it is one of ours, otherwise the primary:
+    // a forged Host header arrives inside a TLS session for a real name.
+    const bare = String(host).toLowerCase().replace(/:\d+$/, '').replace(/\.$/, '');
+    const tls = scheme === 'https' ? { servername: OWN.includes(bare) ? bare : PRIMARY, ca: CA } : {};
+    const req = (scheme === 'https' ? https : http).request({ host: '127.0.0.1', port, method, path: pathname, headers: { Host: host, ...headers }, timeout: 30000, ...tls }, res => {
       const chunks = [];
       res.on('data', c => chunks.push(c));
       res.on('end', () => resolve({
@@ -104,12 +115,12 @@ export function isProtected(u) {
 }
 
 /** Logs in as admin on the primary host; returns a Cookie header value. */
-export async function login() {
+export async function login(user = 'admin', pass = 'password') {
   await request(PRIMARY, '/wp-login.php', { headers: { Cookie: 'wordpress_test_cookie=WP%20Cookie%20check' } });
   const r = await request(PRIMARY, '/wp-login.php', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', Cookie: 'wordpress_test_cookie=WP%20Cookie%20check' },
-    body: 'log=admin&pwd=password&wp-submit=Log+In&testcookie=1&redirect_to=%2Fwp-admin%2F',
+    body: `log=${encodeURIComponent(user)}&pwd=${encodeURIComponent(pass)}&wp-submit=Log+In&testcookie=1&redirect_to=%2Fwp-admin%2F`,
   });
   const jar = r.cookies.map(c => c.split(';')[0]);
   if (!jar.some(c => c.startsWith('wordpress_logged_in_'))) throw new Error(`login failed: HTTP ${r.status}`);

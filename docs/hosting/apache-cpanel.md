@@ -1,6 +1,6 @@
 # Apache / cPanel
 
-> **Not tested.** Based on standard Apache and cPanel behaviour.
+> **Apache verified locally; cPanel not tested.** Apache 2.4.67 with mod_proxy_fcgi, mod_rewrite (WordPress's standard `.htaccess`) and mod_ssl, PHP-FPM 8.4.13, HTTPS with a test certificate, WordPress 7.1.4, 2026-11-06. This is the shape of a typical cPanel account using PHP-FPM, but cPanel, EasyApache, AutoSSL and LSAPI were not tested. The configuration used is [`tests/hosting/httpd.conf.in`](../../tests/hosting/httpd.conf.in); results are in [README.md](README.md#what-was-verified-on-each-local-stack).
 
 ## cPanel
 
@@ -30,4 +30,6 @@ Things to check:
   ```
   Such a rule must list every alias as an exception, or be removed.
 - **`UseCanonicalName Off`** (the default) so `HTTP_HOST` carries the requested name.
+- **`AllowOverride All`** (or at least `FileInfo`) on the document root, so WordPress's `.htaccess` rewrites work. Pretty permalinks and the trailing-slash redirects were tested this way.
+- **PHP-FPM through mod_proxy_fcgi** (`SetHandler "proxy:fcgi://..."`) passes `HTTPS=on` and the request's `Host` to PHP. Tested.
 - **Fonts via a CDN or another host** need CORS headers; see [../caching.md](../caching.md#fonts-and-cors).

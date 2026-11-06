@@ -26,12 +26,13 @@ Request ──► HTTP_HOST in allowlist? ──no──► nothing changes (pri
 | `wp-domain-alias.php` | — | Header, constants, duplicate-copy guard, activation hooks, boot. |
 | `includes/class-host-validator.php` | `Host_Validator` | Validates admin input and the request `Host`. Rejects wildcards, IPs, ports, paths, userinfo and control characters. Converts IDNs to punycode. |
 | `includes/class-domain-manager.php` | `Domain_Manager` | Settings (one option, re-validated on every read), primary host from `home`, approved aliases, current request alias. |
-| `includes/class-url-handler.php` | `Url_Handler` | Decides if a request is an alias frontend view. Protected paths. Moves an own-site URL to another approved host (exact host match only). |
-| `includes/class-link-handler.php` | `Link_Handler` | Output buffer and HTML pass. REST and AJAX endpoint filters. Same-origin scripts, styles, import map and fonts. |
+| `includes/class-url-handler.php` | `Url_Handler` | Decides if a request is an alias frontend view, or an opted-in `admin-post.php` action on an alias. Protected paths. Moves an own-site URL to another approved host (exact host match only). |
+| `includes/class-link-handler.php` | `Link_Handler` | Output buffer and HTML pass (including opted-in `admin-post.php` form targets). REST and AJAX endpoint filters. Same-origin scripts, styles, import map and fonts. |
 | `includes/class-redirect-handler.php` | `Redirect_Handler` | Keeps `redirect_canonical` and `wp_redirect` on the alias. Adds aliases to `allowed_redirect_hosts`. |
-| `includes/class-seo-handler.php` | `Seo_Handler` | Canonical policy (primary or alias) for core, Yoast SEO and Rank Math filters, and for `<link rel=canonical>`, hreflang alternates, `og:url`, `twitter:url` in the HTML pass. |
-| `includes/class-health-check.php` | `Health_Check` | Configuration checks and the admin-started remote checks. |
-| `includes/class-admin.php` | `Admin` | Settings → WP Domain Alias screen and its `admin-post.php` handlers. |
+| `includes/class-seo-handler.php` | `Seo_Handler` | Keeps canonical URLs on the primary domain for core, Yoast SEO and Rank Math filters, and for `<link rel=canonical>`, hreflang alternates, `og:url`, `twitter:url` in the HTML pass. |
+| `includes/class-health-check.php` | `Health_Check` | Configuration checks, and the admin-started remote checks: per-user runs checked a few hosts at a time, DNS validation and connection pinning. |
+| `includes/class-admin.php` | `Admin` | Settings → WP Domain Alias screen, its `admin-post.php` handlers, the health-check AJAX endpoints, and the one-time migration of 0.1.0-beta settings. |
+| `admin/admin.js` | — | Progressive health check: one domain per AJAX request, inserts server-rendered results. Optional; everything works without it. |
 | `includes/class-plugin.php` | `Plugin` | Wires components, Multisite refusal, admin notices, integrations. |
 | `includes/integrations/class-cache-enabler.php` | — | Repeats Cache Enabler purges for each alias. |
 | `includes/integrations/class-weglot.php` | — | Re-runs the HTML pass after Weglot renders (untested against real Weglot). |
@@ -82,12 +83,20 @@ One autoloaded option, `wp_domain_alias_settings`:
 array(
   'enabled'        => true,
   'aliases'        => array(),       // lowercase punycode hosts, max 25
-  'canonical_mode' => 'primary',     // or 'alias'
   'diagnostics'    => false,
 )
 ```
 
-Every read re-validates the stored value, so an invalid host written directly to the database is ignored. Transients (`wpda_notices_<user>`, `wpda_health_<user>`, `wpda_hc_lock_<user>`) are short-lived and per user.
+Every read re-validates the stored value, so an invalid host written directly to the database is ignored. A `canonical_mode` key left by 0.1.0-beta is removed on the first admin request; if it was `alias`, the option `wp_domain_alias_canonical_notice` is set until an administrator dismisses the notice.
+
+Per-user transients:
+
+| Transient | Lifetime | Purpose |
+|---|---|---|
+| `wpda_notices_<user>` | short | Admin notices after a form post |
+| `wpda_health_<user>` | 10 min | Health-check run: host snapshot and results so far |
+| `wpda_hc_lock_<user>` | 20 s | Rate limit for starting a run |
+| `wpda_hc_step_<user>` | seconds | Prevents two steps of one run at the same time |
 
 ## Integrations
 
@@ -99,3 +108,19 @@ Every read re-validates the stored value, so an invalid host written directly to
 ## Multisite
 
 Not supported. Activation is refused on Multisite. If the plugin is loaded on a network anyway, it registers no behaviour and shows a notice.
+
+## Health check
+
+1. **Start** (`wpda_health_check` form post, or `wpda_health_start` AJAX). Checks the capability, the nonce and the 20-second rate limit, then stores a run: an id, the primary host and a snapshot of the hosts to check.
+2. **Step** (`wpda_health_continue` form post: up to 3 hosts; `wpda_health_step` AJAX: 1 host). Takes the per-user step lock, checks the next hosts and appends their results. AJAX steps must send the current run id; the comparison uses `hash_equals`.
+3. **Each host**:
+   - Resolve its addresses. Fail if there are none.
+   - Refuse private or reserved addresses, unless it is the primary host or core's `http_request_host_is_external` filter allows it.
+   - Pin cURL to the first validated address (`CURLOPT_RESOLVE` via `http_api_curl`).
+   - `wp_safe_remote_get` with no redirects, a 5 s timeout and a 1 MB limit.
+   - Read the status, the redirect target, the canonical URL and the hosts used by navigation links.
+4. Results are rendered server-side and shown on the page; the AJAX endpoint returns the same HTML.
+
+## `admin-post.php` opt-in
+
+Sites can list `admin-post.php` actions with the `wp_domain_alias_admin_post_actions` filter (default: none). On an alias, the HTML pass first scans the page for forms that post to `admin-post.php` with a listed action, then moves only those forms' `action` attribute to the alias. During such a request on an alias, `wp_redirect` keeps own-host redirects on the alias. Nothing else about `admin-post.php`, CORS or the protected paths changes.

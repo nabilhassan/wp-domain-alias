@@ -1,0 +1,54 @@
+# Apache + PHP-FPM test stack: the shape of a cPanel-style host
+# (mod_proxy_fcgi, WordPress rewrites from .htaccess, mod_ssl).
+# Apple's httpd is linked against LibreSSL, which has no TLS 1.3 in mod_ssl.
+#   127.0.0.1:8444  HTTPS -> the HTTPS test site (.wp-test-https)
+ServerName localhost
+PidFile "@RUN@/httpd.pid"
+ErrorLog "@RUN@/httpd-error.log"
+LogLevel warn
+Listen 127.0.0.1:8444
+
+LoadModule mpm_event_module "@APACHE_MODULES@/mod_mpm_event.so"
+LoadModule authz_core_module "@APACHE_MODULES@/mod_authz_core.so"
+LoadModule authz_host_module "@APACHE_MODULES@/mod_authz_host.so"
+LoadModule unixd_module "@APACHE_MODULES@/mod_unixd.so"
+LoadModule mime_module "@APACHE_MODULES@/mod_mime.so"
+LoadModule dir_module "@APACHE_MODULES@/mod_dir.so"
+LoadModule log_config_module "@APACHE_MODULES@/mod_log_config.so"
+LoadModule setenvif_module "@APACHE_MODULES@/mod_setenvif.so"
+LoadModule headers_module "@APACHE_MODULES@/mod_headers.so"
+LoadModule rewrite_module "@APACHE_MODULES@/mod_rewrite.so"
+LoadModule proxy_module "@APACHE_MODULES@/mod_proxy.so"
+LoadModule proxy_fcgi_module "@APACHE_MODULES@/mod_proxy_fcgi.so"
+LoadModule socache_shmcb_module "@APACHE_MODULES@/mod_socache_shmcb.so"
+LoadModule ssl_module "@APACHE_MODULES@/mod_ssl.so"
+
+TypesConfig "@APACHE_MIME@"
+DirectoryIndex index.php index.html
+LogFormat "%h %{Host}i \"%r\" %>s %b" vhost
+CustomLog "@RUN@/httpd-access.log" vhost
+SSLSessionCache "shmcb:@RUN@/ssl_scache(512000)"
+Mutex file:@RUN@ default
+
+<Directory />
+	AllowOverride None
+	Require all denied
+</Directory>
+<Directory "@WP_HTTPS@">
+	AllowOverride All
+	Options FollowSymLinks
+	Require all granted
+</Directory>
+<FilesMatch "\.php$">
+	SetHandler "proxy:fcgi://127.0.0.1:9074"
+</FilesMatch>
+
+<VirtualHost 127.0.0.1:8444>
+	ServerName primary.test
+	ServerAlias www.primary.test alias-one.test alias-two.test www.alias-two.test
+	DocumentRoot "@WP_HTTPS@"
+	SSLEngine on
+	SSLProtocol -all +TLSv1.2
+	SSLCertificateFile "@RUN@/tls/leaf.pem"
+	SSLCertificateKeyFile "@RUN@/tls/leaf.key"
+</VirtualHost>

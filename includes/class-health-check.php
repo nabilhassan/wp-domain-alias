@@ -14,19 +14,25 @@ defined( 'ABSPATH' ) || exit;
  * domain's homepage.
  *
  * Safety rules:
- * - Called only from an authenticated, nonce-checked admin POST.
- * - Requests go only to the saved primary host and saved aliases; nothing
- *   from the request is used as a destination.
- * - Destinations resolving to private or reserved addresses are refused
- *   (wp_safe_remote_get with reject_unsafe_urls).
+ * - Called only from authenticated, nonce-checked admin requests.
+ * - Requests go only to the saved primary host and saved aliases, snapshotted
+ *   when a run starts; nothing from the request is used as a destination.
+ * - Each host is resolved once, every address must be public (unless core's
+ *   http_request_host_is_external filter allows the host), and the request is
+ *   pinned to the validated address so a second DNS answer cannot redirect it
+ *   (DNS rebinding). wp_safe_remote_get's own check stays as a second layer.
  * - No redirects are followed, timeouts are short and responses are capped.
- * - Nothing is written except a short-lived per-user rate-limit flag.
+ * - A run is processed in small steps (at most BATCH_SIZE hosts per request)
+ *   so no single PHP request runs long, whatever the number of aliases.
+ * - Only short-lived per-user transients are written.
  */
 class Health_Check {
 
 	const TIMEOUT        = 5;
 	const MAX_BYTES      = 1048576;
 	const RATE_LIMIT_TTL = 20;
+	const BATCH_SIZE     = 3;
+	const RUN_TTL        = 600;
 
 	const PASS = 'pass';
 	const WARN = 'warn';
@@ -149,7 +155,7 @@ class Health_Check {
 			$checks[] = $this->item(
 				self::INFO,
 				__( 'Cache Enabler', 'wp-domain-alias' ),
-				__( 'Alias copies are cleared whenever content changes. As a safety net, enable "Cache Expiry" in Cache Enabler so alias pages can never stay stale indefinitely.', 'wp-domain-alias' )
+				__( 'Alias copies are cleared whenever content changes. As a safety net, enable "Expiration" in the Cache Enabler settings so alias pages can never stay stale indefinitely.', 'wp-domain-alias' )
 			);
 		}
 
@@ -157,26 +163,110 @@ class Health_Check {
 	}
 
 	/**
-	 * Checks the homepage of the primary domain and each alias.
+	 * Hosts a run checks: the primary host, then each saved alias.
 	 *
-	 * @return array<int,array{host:string,display:string,checks:array}>
+	 * @return string[]
 	 */
-	public function run_remote_checks() {
-		$primary = $this->domains->primary_host();
-		$hosts   = array_merge( array( $primary ), $this->domains->aliases() );
-		$results = array();
-
-		foreach ( $hosts as $host ) {
-			if ( ! Host_Validator::is_valid_host( $host ) ) {
-				continue;
+	public function hosts_to_check() {
+		$hosts = array();
+		foreach ( array_merge( array( $this->domains->primary_host() ), $this->domains->aliases() ) as $host ) {
+			if ( Host_Validator::is_valid_host( $host ) && ! in_array( $host, $hosts, true ) ) {
+				$hosts[] = $host;
 			}
-			$results[] = array(
+		}
+		return $hosts;
+	}
+
+	/**
+	 * Starts a new run for a user. Nothing is requested yet.
+	 *
+	 * @param int $user_id User ID.
+	 * @return array|false Run state, or false when rate-limited.
+	 */
+	public function start_run( $user_id ) {
+		if ( ! $this->acquire_rate_limit( $user_id ) ) {
+			return false;
+		}
+		$run = array(
+			'id'      => md5( uniqid( (string) $user_id, true ) ),
+			'started' => time(),
+			'primary' => $this->domains->primary_host(),
+			'hosts'   => $this->hosts_to_check(),
+			'results' => array(),
+		);
+		set_transient( $this->run_key( $user_id ), $run, self::RUN_TTL );
+		return $run;
+	}
+
+	/**
+	 * The user's current run, or null.
+	 *
+	 * @param int $user_id User ID.
+	 * @return array|null
+	 */
+	public function get_run( $user_id ) {
+		$run = get_transient( $this->run_key( $user_id ) );
+		if ( ! is_array( $run ) || ! isset( $run['id'], $run['hosts'], $run['results'] ) || ! is_array( $run['hosts'] ) || ! is_array( $run['results'] ) ) {
+			return null;
+		}
+		return $run;
+	}
+
+	/**
+	 * Checks the next hosts of the user's run, at most $max_hosts of them.
+	 *
+	 * Concurrent steps for the same user are refused, so repeated or parallel
+	 * requests cannot multiply outgoing traffic.
+	 *
+	 * @param int    $user_id   User ID.
+	 * @param int    $max_hosts Hosts to check in this request (1 to BATCH_SIZE).
+	 * @param string $run_id    Optional run ID the caller expects.
+	 * @return array|\WP_Error Updated run state.
+	 */
+	public function run_step( $user_id, $max_hosts = self::BATCH_SIZE, $run_id = '' ) {
+		$run = $this->get_run( $user_id );
+		if ( null === $run || ( '' !== $run_id && ! hash_equals( $run['id'], (string) $run_id ) ) ) {
+			return new \WP_Error( 'wpda_no_run', __( 'This health check has expired. Start a new one.', 'wp-domain-alias' ) );
+		}
+		$lock = 'wpda_hc_step_' . (int) $user_id;
+		if ( get_transient( $lock ) ) {
+			return new \WP_Error( 'wpda_busy', __( 'A health check step is already running. Please wait.', 'wp-domain-alias' ) );
+		}
+		$max_hosts = max( 1, min( self::BATCH_SIZE, (int) $max_hosts ) );
+		set_transient( $lock, 1, self::TIMEOUT * $max_hosts + 15 );
+
+		$done = count( $run['results'] );
+		$todo = array_slice( $run['hosts'], $done, $max_hosts );
+		foreach ( $todo as $host ) {
+			$run['results'][] = array(
 				'host'    => $host,
 				'display' => Host_Validator::to_display( $host ),
-				'checks'  => $this->check_host( $host, $host === $primary ),
+				'checks'  => $this->check_host( $host, $host === $run['primary'] ),
 			);
 		}
-		return $results;
+		set_transient( $this->run_key( $user_id ), $run, self::RUN_TTL );
+		delete_transient( $lock );
+		return $run;
+	}
+
+	/**
+	 * Whether every host of a run has been checked.
+	 *
+	 * @param array $run Run state.
+	 * @return bool
+	 */
+	public static function is_complete( array $run ) {
+		return count( $run['results'] ) >= count( $run['hosts'] );
+	}
+
+	/**
+	 * Transient key of a user's run.
+	 *
+	 * @param int $user_id User ID.
+	 * @return string
+	 */
+	private function run_key( $user_id ) {
+		return 'wpda_health_' . (int) $user_id;
 	}
 
 	/**
@@ -206,6 +296,24 @@ class Health_Check {
 		$url    = $scheme . '://' . $host . '/';
 		$checks = array();
 
+		$ips = $this->resolve( $host );
+		if ( empty( $ips ) ) {
+			$checks[] = $this->item( self::FAIL, __( 'Reachable', 'wp-domain-alias' ), __( 'The domain does not resolve. Check its DNS records.', 'wp-domain-alias' ) );
+			return $checks;
+		}
+		// Like core's wp_http_validate_url(), the site's own host may resolve
+		// internally (intranets, containers, NAT); aliases may not, unless core's
+		// http_request_host_is_external filter allows them.
+		/** This filter is documented in wp-includes/http.php */
+		$allow_internal = $is_primary || (bool) apply_filters( 'http_request_host_is_external', false, $host, $url ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Core's hook, applied with core's semantics.
+		foreach ( $ips as $ip ) {
+			if ( ! $allow_internal && ! self::is_public_ip( $ip ) ) {
+				$checks[] = $this->item( self::FAIL, __( 'Reachable', 'wp-domain-alias' ), __( 'Not checked: the domain resolves to a private or reserved network address. Requests to internal addresses are blocked.', 'wp-domain-alias' ) );
+				return $checks;
+			}
+		}
+		$pin = $this->pin( $host, 'https' === $scheme ? 443 : 80, $ips[0], $url );
+
 		$response = wp_safe_remote_get(
 			$url,
 			array(
@@ -219,12 +327,13 @@ class Health_Check {
 				'cookies'             => array(),
 			)
 		);
+		remove_action( 'http_api_curl', $pin, 10 );
 
 		if ( is_wp_error( $response ) ) {
 			$checks[] = $this->item(
 				self::FAIL,
 				__( 'Reachable', 'wp-domain-alias' ),
-				$this->describe_error( $response, $scheme )
+				$this->describe_error( $response )
 			);
 			return $checks;
 		}
@@ -282,9 +391,7 @@ class Health_Check {
 			}
 		}
 
-		$expected = ( $is_primary || Domain_Manager::CANONICAL_PRIMARY === $this->domains->canonical_mode() )
-			? $this->domains->primary_host()
-			: $host;
+		$expected = $this->domains->primary_host();
 		if ( 0 === count( $scan['canonicals'] ) ) {
 			$checks[] = $this->item( self::INFO, __( 'Canonical', 'wp-domain-alias' ), __( 'The homepage has no canonical tag.', 'wp-domain-alias' ) );
 		} elseif ( count( $scan['canonicals'] ) > 1 ) {
@@ -300,6 +407,100 @@ class Health_Check {
 		}
 
 		return $checks;
+	}
+
+	/**
+	 * Resolves a host to its IP addresses (IPv4, else IPv6).
+	 *
+	 * @param string $host Hostname.
+	 * @return string[]
+	 */
+	private function resolve( $host ) {
+		/**
+		 * Short-circuits DNS resolution for the health check, for example on
+		 * split-horizon DNS or in tests. Return an array of IP addresses, or
+		 * null to resolve normally. Returned addresses are still validated.
+		 *
+		 * @param string[]|null $ips  Addresses, or null.
+		 * @param string        $host Hostname.
+		 */
+		$ips = apply_filters( 'wp_domain_alias_health_check_ips', null, $host );
+		if ( null === $ips ) {
+			$ips = gethostbynamel( $host );
+			$ips = is_array( $ips ) ? $ips : array();
+			if ( empty( $ips ) && function_exists( 'dns_get_record' ) ) {
+				$records = @dns_get_record( $host, DNS_AAAA ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- Lookup failures are reported as "does not resolve".
+				foreach ( is_array( $records ) ? $records : array() as $record ) {
+					if ( isset( $record['ipv6'] ) ) {
+						$ips[] = $record['ipv6'];
+					}
+				}
+			}
+		}
+		$valid = array();
+		foreach ( (array) $ips as $ip ) {
+			if ( is_string( $ip ) && false !== filter_var( $ip, FILTER_VALIDATE_IP ) ) {
+				$valid[] = $ip;
+			}
+		}
+		return array_values( array_unique( $valid ) );
+	}
+
+	/**
+	 * Whether an IP address is publicly routable.
+	 *
+	 * @param string $ip IP address.
+	 * @return bool
+	 */
+	public static function is_public_ip( $ip ) {
+		$ip = strtolower( (string) $ip );
+		if ( 0 === strpos( $ip, '::ffff:' ) && false !== filter_var( substr( $ip, 7 ), FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 ) ) {
+			$ip = substr( $ip, 7 ); // IPv4-mapped IPv6.
+		}
+		if ( false === filter_var( $ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE ) ) {
+			return false;
+		}
+		$bin = inet_pton( $ip );
+		if ( false === $bin ) {
+			return false;
+		}
+		if ( 4 === strlen( $bin ) ) {
+			$n = unpack( 'N', $bin );
+			$n = $n[1];
+			// Ranges PHP's flags miss on some versions: 0/8, 100.64/10 (CGNAT), 192.0.0/24, 198.18/15, 224/4 and above.
+			$blocked = array( array( 0x00000000, 8 ), array( 0x64400000, 10 ), array( 0xC0000000, 24 ), array( 0xC6120000, 15 ), array( 0xE0000000, 3 ) );
+			foreach ( $blocked as $range ) {
+				$mask = ( 0xFFFFFFFF << ( 32 - $range[1] ) ) & 0xFFFFFFFF;
+				if ( ( $n & $mask ) === $range[0] ) {
+					return false;
+				}
+			}
+			return true;
+		}
+		$first  = ord( $bin[0] );
+		$second = ord( $bin[1] );
+		// fc00::/7 unique local, fe80::/10 link local, ff00::/8 multicast, ::/8 (loopback, unspecified, mapped).
+		return ! ( 0xfc === ( $first & 0xfe ) || ( 0xfe === $first && 0x80 === ( $second & 0xc0 ) ) || 0xff === $first || 0x00 === $first );
+	}
+
+	/**
+	 * Pins the next request to $url to a validated address (cURL only).
+	 *
+	 * @param string $host Hostname.
+	 * @param int    $port Port.
+	 * @param string $ip   Validated address.
+	 * @param string $url  Exact URL of the request to pin.
+	 * @return callable The hook callback, to remove after the request.
+	 */
+	private function pin( $host, $port, $ip, $url ) {
+		$entry    = $host . ':' . $port . ':' . ( false !== strpos( $ip, ':' ) ? '[' . $ip . ']' : $ip );
+		$callback = static function ( $handle, $args, $request_url ) use ( $entry, $url ) {
+			if ( $request_url === $url && defined( 'CURLOPT_RESOLVE' ) ) {
+				curl_setopt( $handle, CURLOPT_RESOLVE, array( $entry ) ); // phpcs:ignore WordPress.WP.AlternativeFunctions.curl_curl_setopt -- Pinning needs the cURL handle that core exposes.
+			}
+		};
+		add_action( 'http_api_curl', $callback, 10, 3 );
+		return $callback;
 	}
 
 	/**
@@ -336,10 +537,9 @@ class Health_Check {
 	 * Converts a transport error into a message without internal details.
 	 *
 	 * @param \WP_Error $error  Error.
-	 * @param string    $scheme Scheme used.
 	 * @return string
 	 */
-	private function describe_error( $error, $scheme ) {
+	private function describe_error( $error ) {
 		if ( 'http_request_not_executed' === $error->get_error_code() ) {
 			return __( 'Not checked: outgoing requests are blocked by this site\'s configuration (WP_HTTP_BLOCK_EXTERNAL).', 'wp-domain-alias' );
 		}
@@ -349,7 +549,7 @@ class Health_Check {
 			return __( 'Not checked: the domain does not resolve, or it resolves to a private or reserved network address. Requests to internal addresses are blocked.', 'wp-domain-alias' );
 		}
 		$message = strtolower( $error->get_error_message() );
-		if ( 'https' === $scheme && ( false !== strpos( $message, 'ssl' ) || false !== strpos( $message, 'certificate' ) ) ) {
+		if ( false !== strpos( $message, 'ssl' ) || false !== strpos( $message, 'certificate' ) ) {
 			return __( 'The HTTPS certificate could not be verified for this domain.', 'wp-domain-alias' );
 		}
 		if ( false !== strpos( $message, 'timed out' ) || false !== strpos( $message, 'timeout' ) ) {

@@ -8,6 +8,7 @@
 defined( 'WP_UNINSTALL_PLUGIN' ) || exit;
 
 delete_option( 'wp_domain_alias_settings' );
+delete_option( 'wp_domain_alias_canonical_notice' );
 
 // Short-lived per-user notices, health results and rate-limit flags.
 global $wpdb;

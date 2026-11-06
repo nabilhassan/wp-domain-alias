@@ -18,8 +18,10 @@ class Domain_Manager {
 	const OPTION      = 'wp_domain_alias_settings';
 	const MAX_ALIASES = 25;
 
-	const CANONICAL_PRIMARY = 'primary';
-	const CANONICAL_ALIAS   = 'alias';
+	/**
+	 * Flag option set when a 0.1.0-beta "alias canonical" setting is migrated.
+	 */
+	const CANONICAL_NOTICE_OPTION = 'wp_domain_alias_canonical_notice';
 
 	/**
 	 * Memoised settings for this request.
@@ -49,10 +51,9 @@ class Domain_Manager {
 	 */
 	public static function defaults() {
 		return array(
-			'enabled'        => true,
-			'aliases'        => array(),
-			'canonical_mode' => self::CANONICAL_PRIMARY,
-			'diagnostics'    => false,
+			'enabled'     => true,
+			'aliases'     => array(),
+			'diagnostics' => false,
 		);
 	}
 
@@ -87,9 +88,6 @@ class Domain_Manager {
 		}
 		if ( array_key_exists( 'diagnostics', $raw ) ) {
 			$settings['diagnostics'] = (bool) $raw['diagnostics'];
-		}
-		if ( isset( $raw['canonical_mode'] ) && self::CANONICAL_ALIAS === $raw['canonical_mode'] ) {
-			$settings['canonical_mode'] = self::CANONICAL_ALIAS;
 		}
 		$settings['aliases'] = $this->clean_alias_list( isset( $raw['aliases'] ) ? $raw['aliases'] : array() );
 
@@ -146,13 +144,25 @@ class Domain_Manager {
 	}
 
 	/**
-	 * Canonical mode: 'primary' (default) or 'alias'.
+	 * Removes the 0.1.0-beta "canonical_mode" key from stored settings.
 	 *
-	 * @return string
+	 * Canonical URLs always point to the primary domain since 0.1.1-beta, so
+	 * the stored key is ignored on the front end even before this runs. If the
+	 * site had chosen alias canonicals, a one-time admin notice explains the
+	 * change.
+	 *
+	 * @return bool Whether anything was migrated.
 	 */
-	public function canonical_mode() {
-		$settings = $this->get_settings();
-		return $settings['canonical_mode'];
+	public function migrate_legacy_settings() {
+		$raw = get_option( self::OPTION, false );
+		if ( ! is_array( $raw ) || ! array_key_exists( 'canonical_mode', $raw ) ) {
+			return false;
+		}
+		if ( 'alias' === $raw['canonical_mode'] ) {
+			update_option( self::CANONICAL_NOTICE_OPTION, 1, false );
+		}
+		$this->save( $this->sanitize( $raw ) );
+		return true;
 	}
 
 	/**

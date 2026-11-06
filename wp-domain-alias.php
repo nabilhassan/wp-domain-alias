@@ -2,8 +2,8 @@
 /**
  * Plugin Name:       WP Domain Alias
  * Plugin URI:        https://github.com/nabilhassan/wp-domain-alias
- * Description:       Show one WordPress site on additional approved domains while keeping visitors on the domain they entered. Canonical URLs stay on the primary domain by default.
- * Version:           0.1.0-beta
+ * Description:       Show one WordPress site on additional approved domains while keeping visitors on the domain they entered. Canonical URLs stay on the primary domain.
+ * Version:           0.1.1-beta
  * Requires at least: 6.4
  * Requires PHP:      7.4
  * Author:            Md Sazzadul Hossen Nabil
@@ -26,7 +26,7 @@ if ( defined( 'WP_DOMAIN_ALIAS_VERSION' ) ) {
 	return;
 }
 
-define( 'WP_DOMAIN_ALIAS_VERSION', '0.1.0-beta' );
+define( 'WP_DOMAIN_ALIAS_VERSION', '0.1.1-beta' );
 define( 'WP_DOMAIN_ALIAS_FILE', __FILE__ );
 define( 'WP_DOMAIN_ALIAS_DIR', __DIR__ );
 

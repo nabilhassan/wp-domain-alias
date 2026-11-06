@@ -37,7 +37,13 @@ On WordPress older than 6.7, fonts that other plugins print inline are not adjus
 ## A form does not submit on an alias
 
 - Forms that post to the page itself, to `admin-ajax.php` or to the REST API are kept on the alias.
-- Forms that post to `admin-post.php` post to the primary domain by design. They work if the primary domain accepts the request, but any cookie the handler sets is set on the primary domain.
+- Forms that post to `admin-post.php` post to the primary domain by default. They work, but the visitor ends up on the primary domain afterwards and any cookie the handler sets belongs to the primary domain. If the handler doesn't need primary-domain cookies, keep that form on the alias by listing its action:
+  ```php
+  add_filter( 'wp_domain_alias_admin_post_actions', function () {
+  	return array( 'my_form_action' );
+  } );
+  ```
+  Details: [review-0.1.1-beta.md](review-0.1.1-beta.md#3-admin-postphp-forms).
 - Forms with security tokens bound to a session or cookie may fail across domains. Test each form on each alias.
 
 ## "WP Domain Alias is installed twice"
@@ -47,8 +53,13 @@ The plugin exists both as a Must-Use plugin and as a regular plugin. Only the fi
 ## The health check says "Not checked"
 
 - *Outgoing requests are blocked*: `WP_HTTP_BLOCK_EXTERNAL` is set in `wp-config.php`. Allow your own domains with `WP_ACCESSIBLE_HOSTS`, or check the domains in a browser.
-- *The domain does not resolve, or resolves to a private address*: the health check refuses private and reserved IP addresses on purpose. This is common in local development and behind some load balancers. Check in a browser instead.
-- *Please wait*: the check can be run once every 20 seconds.
+- *The domain does not resolve*: there is no DNS record for it yet, or this server can't resolve it.
+- *The domain resolves to a private or reserved network address*: the health check refuses private and reserved IP addresses on purpose. This is common in local development and behind some load balancers. Check in a browser instead. (The primary domain is exempt.)
+- *Please wait*: a new check can be started once every 20 seconds.
+
+## The health check stops part-way
+
+Without JavaScript, each click checks up to three domains; use **Check the next domains** to continue. With JavaScript, the page checks one domain per request and shows each result as it arrives. If it stops ("The health check stopped"), reload the page: results so far are kept for 10 minutes, and the continue button resumes the run. A domain that doesn't answer is reported as timed out after 5 seconds.
 
 ## Logged in on the primary, logged out on the alias
 
@@ -57,6 +68,10 @@ Expected. Login cookies belong to one domain, and admin and login stay on the pr
 ## Search engines index the alias
 
 Check that alias pages have a single canonical tag pointing to the primary domain (view source, search for `rel="canonical"`). Canonical tags are hints; it can take weeks for search engines to consolidate. See [seo.md](seo.md).
+
+## "The \"point canonical URLs to the alias\" setting was removed" notice
+
+Shown once after upgrading from 0.1.0-beta when canonical URLs were set to point to the alias. That option was removed; canonical URLs now always point to the primary domain. Dismiss the notice. See [seo.md](seo.md#why-there-is-no-alias-canonical-mode).
 
 ## Reporting a bug
 

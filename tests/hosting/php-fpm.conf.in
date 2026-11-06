@@ -1,0 +1,16 @@
+; PHP-FPM pool shared by the local Nginx and Apache test stacks.
+[global]
+pid = @RUN@/php-fpm.pid
+error_log = @RUN@/php-fpm.log
+daemonize = yes
+
+[wpda]
+listen = 127.0.0.1:9074
+pm = dynamic
+pm.max_children = 8
+pm.start_servers = 2
+pm.min_spare_servers = 1
+pm.max_spare_servers = 4
+catch_workers_output = yes
+php_admin_value[memory_limit] = 512M
+php_admin_value[error_log] = @RUN@/php-error.log

@@ -1,0 +1,108 @@
+# Nginx + PHP-FPM test stack: a typical VPS WordPress configuration.
+#   127.0.0.1:8443  HTTPS -> the HTTPS test site (.wp-test-https), no server cache
+#   127.0.0.1:8445  HTTPS -> same site, FastCGI cache keyed on scheme + host + URI
+#   127.0.0.1:8446  HTTPS -> same site, FastCGI cache keyed on URI only
+#                    (a misconfiguration, used to prove the tests detect leaks)
+worker_processes 2;
+pid @RUN@/nginx.pid;
+error_log @RUN@/nginx-error.log warn;
+events { worker_connections 256; }
+
+http {
+	include @NGINX_ETC@/mime.types;
+	default_type application/octet-stream;
+	access_log @RUN@/nginx-access.log;
+	client_body_temp_path @RUN@/nginx-tmp/body;
+	proxy_temp_path @RUN@/nginx-tmp/proxy;
+	fastcgi_temp_path @RUN@/nginx-tmp/fastcgi;
+	uwsgi_temp_path @RUN@/nginx-tmp/uwsgi;
+	scgi_temp_path @RUN@/nginx-tmp/scgi;
+	sendfile on;
+	client_max_body_size 16m;
+
+	upstream wpda_php { server 127.0.0.1:9074; }
+
+	fastcgi_cache_path @RUN@/fcgi-cache levels=1:2 keys_zone=wpda_host:10m inactive=10m;
+	fastcgi_cache_path @RUN@/fcgi-cache-path levels=1:2 keys_zone=wpda_path:10m inactive=10m;
+
+	# Never cache for logged-in users, commenters or password-protected posts.
+	map $http_cookie $wpda_cookie_skip {
+		default 0;
+		~*(wordpress_logged_in_|comment_author_|wp-postpass_) 1;
+	}
+	map $request_uri $wpda_uri_skip {
+		default 0;
+		~*(/wp-admin/|/wp-json/|wp-login\.php|xmlrpc\.php|wp-cron\.php|sitemap) 1;
+	}
+
+	ssl_certificate @RUN@/tls/leaf.pem;
+	ssl_certificate_key @RUN@/tls/leaf.key;
+	ssl_protocols TLSv1.2 TLSv1.3;
+
+
+	server {
+		listen 127.0.0.1:8443 ssl default_server;
+		http2 on;
+		server_name primary.test www.primary.test alias-one.test alias-two.test www.alias-two.test;
+		root @WP_HTTPS@;
+		index index.php;
+		location / { try_files $uri $uri/ /index.php?$args; }
+		location ~ /\.(?!well-known) { deny all; }
+		location ~ \.php$ {
+			try_files $uri =404;
+			include @NGINX_ETC@/fastcgi_params;
+			fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+			fastcgi_pass wpda_php;
+		}
+	}
+
+	server {
+		listen 127.0.0.1:8445 ssl default_server;
+		http2 on;
+		server_name primary.test www.primary.test alias-one.test alias-two.test www.alias-two.test;
+		root @WP_HTTPS@;
+		index index.php;
+		set $wpda_skip 0;
+		if ($request_method = POST) { set $wpda_skip 1; }
+		if ($query_string != "") { set $wpda_skip 1; }
+		location / { try_files $uri $uri/ /index.php?$args; }
+		location ~ /\.(?!well-known) { deny all; }
+		location ~ \.php$ {
+			try_files $uri =404;
+			include @NGINX_ETC@/fastcgi_params;
+			fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+			fastcgi_pass wpda_php;
+			fastcgi_cache wpda_host;
+			fastcgi_cache_key "$scheme$request_method$host$request_uri";
+			fastcgi_cache_valid 200 301 302 @TTL@s;
+			fastcgi_cache_bypass $wpda_skip $wpda_cookie_skip $wpda_uri_skip;
+			fastcgi_no_cache $wpda_skip $wpda_cookie_skip $wpda_uri_skip;
+			add_header X-FastCGI-Cache $upstream_cache_status always;
+		}
+	}
+
+	server {
+		listen 127.0.0.1:8446 ssl default_server;
+		http2 on;
+		server_name primary.test www.primary.test alias-one.test alias-two.test www.alias-two.test;
+		root @WP_HTTPS@;
+		index index.php;
+		set $wpda_skip 0;
+		if ($request_method = POST) { set $wpda_skip 1; }
+		if ($query_string != "") { set $wpda_skip 1; }
+		location / { try_files $uri $uri/ /index.php?$args; }
+		location ~ /\.(?!well-known) { deny all; }
+		location ~ \.php$ {
+			try_files $uri =404;
+			include @NGINX_ETC@/fastcgi_params;
+			fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+			fastcgi_pass wpda_php;
+			fastcgi_cache wpda_path;
+			fastcgi_cache_key "$scheme$request_method$request_uri";
+			fastcgi_cache_valid 200 301 302 @TTL@s;
+			fastcgi_cache_bypass $wpda_skip $wpda_cookie_skip $wpda_uri_skip;
+			fastcgi_no_cache $wpda_skip $wpda_cookie_skip $wpda_uri_skip;
+			add_header X-FastCGI-Cache $upstream_cache_status always;
+		}
+	}
+}

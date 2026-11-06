@@ -2,6 +2,18 @@
 /**
  * Router for PHP's built-in server: serve static files, otherwise WordPress.
  */
+// Health-check scenario hosts (see fixtures/wpda-test-env.php).
+$scenario_host = strtolower( isset( $_SERVER['HTTP_HOST'] ) ? $_SERVER['HTTP_HOST'] : '' );
+if ( 'slow.test' === $scenario_host ) {
+	sleep( 8 );
+	echo 'slow';
+	return;
+}
+if ( 'redirect-away.test' === $scenario_host ) {
+	header( 'Location: https://elsewhere.example/landing/', true, 301 );
+	return;
+}
+
 $root = $_SERVER['DOCUMENT_ROOT'];
 $path = urldecode( (string) parse_url( $_SERVER['REQUEST_URI'], PHP_URL_PATH ) );
 $file = realpath( $root . $path );
