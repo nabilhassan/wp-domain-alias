@@ -16,7 +16,7 @@ body:
     id: versions
     attributes:
       label: Plugin, WordPress and PHP versions
-      placeholder: 0.1.1-beta, WordPress 7.1, PHP 8.3
+      placeholder: 0.1.1, WordPress 7.1, PHP 8.3
     validations:
       required: true
   - type: dropdown

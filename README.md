@@ -11,7 +11,7 @@ Show one WordPress site on several approved domains while keeping visitors on th
 Suppose your site lives at `primary-example.com`, and `alias-example.com` also points to the same WordPress installation. Without this plugin, every menu link, button and form on `alias-example.com` sends visitors to `primary-example.com`. With it:
 
 - Navigation links, buttons, pagination, forms and language switchers on an alias keep the alias hostname.
-- Canonical tags (by default), sitemaps and JSON-LD stay on the primary domain, so search engines see one site.
+- Canonical tags, sitemaps and JSON-LD stay on the primary domain, so search engines see one site.
 - Admin, login, sign-up, cron and XML-RPC always stay on the primary domain.
 - Only domains an administrator adds are used. Requests with any other `Host` header are not treated as aliases.
 - A health check shows whether each domain answers, redirects, keeps its hostname, and has the expected canonical URL.
@@ -40,14 +40,18 @@ What it does **not** do:
 
 ## DNS and hosting prerequisites (do this first)
 
-**Every domain must resolve and route to the same WordPress installation before this plugin can work.** Add the primary domain and every alias (including any `www` hostnames you plan to use) in your hosting provider's domain list.
+**Every domain must resolve and route to the same WordPress installation before this plugin can work.** The plugin does not create DNS records, hosting domain mappings or SSL certificates. You set these up at your DNS provider and host:
 
-- **A records:** If your hosting provider assigns an IPv4 address, point each root/apex domain's A record to that **same hosting-assigned IP address**. Any AAAA records must also route to the same installation.
-- **CNAME or managed-host targets:** Some providers require a CNAME or a different DNS target instead of a shared A record. Follow the host's instructions. The real requirement is that all domains reach **the same WordPress installation**.
-- **HTTPS:** Verify valid SSL/TLS certificates for every hostname and that your host/CDN does not redirect approved aliases to the primary hostname.
-- **WordPress settings:** Keep **Settings → General → WordPress Address (URL)** and **Site Address (URL)** on the primary domain.
+- **Same installation:** every hostname (the primary domain and each alias) must reach this one WordPress installation, not a copy or a parked page.
+- **A records:** if your host gives you an IP address, point each domain's A record to that **same hosting-assigned IP address**. Any AAAA (IPv6) records must reach the same installation too.
+- **CNAME or managed DNS targets:** some providers use a CNAME or another DNS target instead of a shared A record. Follow your provider's instructions; what matters is that all domains reach **the same WordPress installation**.
+- **`www` and non-`www`:** these are separate hostnames. If visitors may use both `alias-example.com` and `www.alias-example.com`, configure DNS, hosting and HTTPS for both, and add both in the plugin settings.
+- **Hosting dashboard:** add (map) every domain to the same site in your hosting dashboard. It may be called "add domain", "alias", "parked domain" or "server alias". Do not make an alias the primary domain.
+- **HTTPS:** every hostname needs its own valid SSL/TLS certificate.
+- **No redirects to the primary:** make sure no hosting, CDN or redirect-plugin rule sends approved aliases to the primary domain. The plugin cannot override a redirect that happens before WordPress runs.
+- **WordPress settings:** keep **Settings → General → WordPress Address (URL)** and **Site Address (URL)** on the primary domain. Do not change them to an alias.
 
-Wait for DNS propagation and verify each domain reaches the same site. The plugin cannot provision DNS, hosting aliases or certificates. See [hosting guides](docs/hosting/README.md).
+Wait for DNS to propagate, then open each domain and check it shows the same site without redirecting. See the [hosting guides](docs/hosting/README.md).
 
 ## Installation
 

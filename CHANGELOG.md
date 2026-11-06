@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Documentation
+
+- README and installation guide list each DNS and hosting prerequisite separately: same installation, A/AAAA or provider CNAME targets, `www` and non-`www`, hosting-dashboard mapping, HTTPS, no redirects to the primary, WordPress addresses unchanged.
+- Issue templates use 0.1.1 as the example version.
+
 ## [0.1.1] - 2026-11-06
 
 First non-beta release. No runtime behavior changes relative to 0.1.1-beta. The current documentation now explains DNS and hosting prerequisites explicitly. Previous prerelease entries are retained below for historical accuracy.
