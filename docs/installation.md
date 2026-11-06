@@ -4,10 +4,15 @@
 
 The plugin only works once each alias already reaches this WordPress installation. Check this first:
 
-1. **DNS**: the alias's A/AAAA or CNAME records point to your host, as your host instructs.
-2. **Hosting domain mapping**: the alias is added to the same site at your host (sometimes called "add domain", "alias", "parked domain" or "server alias"). Do **not** set it as the primary domain, and do **not** create a redirect for it.
-3. **HTTPS**: the alias has a valid certificate. Most hosts issue one automatically once DNS points to them.
-4. **Test**: open `https://alias-example.com/`. You should see your site. At this stage its links still go to the primary domain. If you are redirected to the primary domain, remove that redirect at the host, CDN or redirect plugin first.
+1. **DNS**: every domain reaches the **same WordPress installation**. With A records, point each domain to the same hosting-assigned IP address (and any AAAA records to the same installation). If your provider uses a CNAME or another managed DNS target, follow its instructions instead.
+2. **`www` and non-`www`**: these are separate hostnames. Configure DNS, hosting and HTTPS for each form visitors may use.
+3. **Hosting domain mapping**: the alias is added to the same site at your host (sometimes called "add domain", "alias", "parked domain" or "server alias"). Do **not** set it as the primary domain, and do **not** create a redirect for it.
+4. **HTTPS**: every hostname has a valid certificate. Most hosts issue one automatically once DNS points to them.
+5. **No redirects**: no hosting, CDN or redirect-plugin rule sends the alias to the primary domain.
+6. **WordPress settings**: **Settings → General → WordPress Address (URL)** and **Site Address (URL)** stay on the primary domain.
+7. **Test**: open `https://alias-example.com/`. You should see your site. At this stage its links still go to the primary domain. If you are redirected to the primary domain, remove that redirect at the host, CDN or redirect plugin first.
+
+The plugin does not create DNS records, hosting domain mappings or SSL certificates.
 
 Provider-specific notes: [hosting/README.md](hosting/README.md).
 
