@@ -1,0 +1,77 @@
+{
+  "label": "0.1.1-beta",
+  "runs": 30,
+  "date": "2026-11-06T13:46:58.474Z",
+  "results": [
+    {
+      "page": "Homepage",
+      "host": "primary (plugin inactive)",
+      "median_ms": 38.25,
+      "p95_ms": 40.67,
+      "peak_mem_kb": 7812
+    },
+    {
+      "page": "Internal page",
+      "host": "primary (plugin inactive)",
+      "median_ms": 30.68,
+      "p95_ms": 31.04,
+      "peak_mem_kb": 7919
+    },
+    {
+      "page": "Large page (2,000 links)",
+      "host": "primary (plugin inactive)",
+      "median_ms": 38.27,
+      "p95_ms": 44.56,
+      "peak_mem_kb": 8431
+    },
+    {
+      "page": "Homepage",
+      "host": "primary",
+      "median_ms": 38.34,
+      "p95_ms": 39.68,
+      "peak_mem_kb": 7851
+    },
+    {
+      "page": "Homepage",
+      "host": "alias",
+      "median_ms": 39.97,
+      "p95_ms": 40.58,
+      "peak_mem_kb": 7867
+    },
+    {
+      "page": "Internal page",
+      "host": "primary",
+      "median_ms": 30.69,
+      "p95_ms": 31.44,
+      "peak_mem_kb": 7957
+    },
+    {
+      "page": "Internal page",
+      "host": "alias",
+      "median_ms": 32.37,
+      "p95_ms": 33.01,
+      "peak_mem_kb": 7974
+    },
+    {
+      "page": "Large page (2,000 links)",
+      "host": "primary",
+      "median_ms": 38.3,
+      "p95_ms": 39.24,
+      "peak_mem_kb": 8469
+    },
+    {
+      "page": "Large page (2,000 links)",
+      "host": "alias",
+      "median_ms": 73.58,
+      "p95_ms": 73.96,
+      "peak_mem_kb": 8486
+    },
+    {
+      "page": "Large page, 25 aliases configured",
+      "host": "alias",
+      "median_ms": 74.56,
+      "p95_ms": 76.3,
+      "peak_mem_kb": 8489
+    }
+  ]
+}
