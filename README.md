@@ -2,7 +2,7 @@
 
 Show one WordPress site on several approved domains while keeping visitors on the domain they typed. Canonical URLs, sitemaps and structured data keep pointing at the primary domain.
 
-> **Status: 0.1.0-beta.** Tested locally only (see [what was tested](#what-has-been-tested)). No hosting provider has been tested yet. Try it on a staging copy first.
+> **Status: 0.1.1-beta.** Tested locally only, on PHP's built-in server and on Nginx and Apache with PHP-FPM over HTTPS (see [what was tested](#what-has-been-tested)). No hosting provider has been tested yet. Try it on a staging copy first.
 
 ![Settings screen](assets/screenshots/settings.png)
 
@@ -57,7 +57,7 @@ Step-by-step guides: [docs/installation.md](docs/installation.md).
 |---|---|---|
 | Aliases | none | Exact hostnames, up to 25. Wildcards, IP addresses, ports and paths are rejected. Internationalised domains are stored as punycode. |
 | Hostname preservation | on | Off = aliases still load, but links point to the primary domain. |
-| Canonical URLs | primary | *Primary*: canonical, hreflang and `og:url` on alias pages point to the primary domain (recommended). *Alias*: they point to the alias being viewed. |
+| Canonical URLs | primary | Always the primary domain: canonical, hreflang and `og:url` on alias pages point to the primary domain. Not configurable (see [SEO](#seo)). |
 | Diagnostics | off | Adds an `X-WP-Domain-Alias` response header and an HTML comment on alias pages, to help debug caching. |
 
 The primary domain is read from **Settings → General → Site Address** and cannot be changed here.
@@ -66,12 +66,18 @@ The primary domain is read from **Settings → General → Site Address** and ca
 
 ![Health check results](assets/screenshots/health-check.png)
 
-The health check runs only when an administrator clicks the button. It requests each saved domain's homepage from the server, without following redirects, with a 5-second timeout and a 1 MB response limit. Requests to private or reserved IP addresses are refused, and it can be run once every 20 seconds per user. It reports:
+The health check runs only when an administrator clicks the button. It requests each saved domain's homepage from the server, without following redirects, with a 5-second timeout and a 1 MB response limit.
+
+- **Short requests.** With JavaScript, one domain is checked per request and results appear as they arrive. Without JavaScript, up to three domains are checked per click, with a **Check the next domains** button. No request runs long, even with 25 aliases.
+- **Safe destinations.** Every address a domain resolves to must be public. The connection is pinned to the checked address, so a second DNS answer can't redirect it.
+- **Rate limit.** A new check can be started once every 20 seconds per user.
+
+It reports:
 
 - whether the domain answers with HTTP 200 and a valid certificate,
 - any redirect, and whether it goes to another domain,
 - whether internal links keep the alias hostname (a cache serving another domain's copy shows up here),
-- the canonical URL and whether it matches the setting.
+- the canonical URL and whether it points to the primary domain.
 
 It does not run JavaScript, submit forms or test the site in a browser.
 
@@ -81,7 +87,7 @@ WordPress keeps generating primary-domain URLs. On an approved alias page view, 
 
 1. buffers the final HTML and changes only navigation attributes (`a`/`area` `href`, `form action`, `formaction`, `data-column-clickable`) that point to this site, using WordPress's HTML API (`WP_HTML_Tag_Processor`);
 2. serves scripts, stylesheets, the script-module import map and theme fonts from the alias, because browsers block module scripts and web fonts loaded from another origin without CORS headers (images stay on the primary domain);
-3. keeps REST API and `admin-ajax.php` requests made by frontend scripts on the alias, so forms and AJAX stay same-origin;
+3. keeps REST API and `admin-ajax.php` requests made by frontend scripts on the alias, so forms and AJAX stay same-origin (`admin-post.php` forms stay on the primary unless a site [opts them in](#developer-filters));
 4. keeps WordPress's own canonical redirects (trailing slash, etc.) on the alias, and cancels only redirects that would switch the visitor to another host.
 
 Details: [docs/architecture.md](docs/architecture.md).
@@ -90,9 +96,9 @@ Details: [docs/architecture.md](docs/architecture.md).
 
 ## SEO
 
-- Default: every alias page has a canonical tag pointing to the same page on the primary domain. XML sitemaps (core, Yoast SEO, Rank Math) and JSON-LD list only primary URLs.
+- Every alias page has one canonical tag pointing to the same page on the primary domain. Hreflang alternates and `og:url` do too. XML sitemaps (core, Yoast SEO, Rank Math) and JSON-LD list only primary URLs.
 - Canonical tags are hints that search engines usually follow, not guarantees.
-- Hreflang alternates follow the canonical setting.
+- 0.1.0-beta had an option to point canonicals at the alias. It sent contradictory signals and was removed in 0.1.1-beta. A stored value is migrated automatically, with a one-time notice.
 
 More: [docs/seo.md](docs/seo.md).
 
@@ -100,37 +106,38 @@ More: [docs/seo.md](docs/seo.md).
 
 Your page cache and CDN must store a separate copy per hostname. Most do by default. A cache keyed only on the path would show one domain's links on another. The health check detects this. Purge all caches after adding or removing an alias.
 
-Cache Enabler is supported directly: purges are repeated for each alias. Details and per-cache notes: [docs/caching.md](docs/caching.md).
+Cache Enabler is supported directly: purges are repeated for each alias. An Nginx FastCGI cache keyed on the host was also verified. Details, test results and per-cache notes: [docs/caching.md](docs/caching.md).
 
 ## What has been tested
 
-All testing so far was done in a local environment: PHP's built-in web server with SQLite, using `.test` hostnames. No live hosting provider has been tested.
+All testing was done locally with `.test` hostnames. **No hosting provider has been tested.**
 
 | Area | Tested with |
 |---|---|
+| Servers | PHP 8.4 built-in server (HTTP); Nginx 1.31.8 + PHP-FPM 8.4 (HTTPS); Apache 2.4.67 + PHP-FPM 8.4 with `.htaccess` rewrites (HTTPS) |
 | WordPress | 6.4.5 and 7.1.4 (Twenty Twenty-Four, Twenty Twenty-Five) |
 | SEO | WordPress core, Yoast SEO 28.8, Rank Math 1.0.281 |
 | Multilingual | Polylang 3.9.1 |
 | Builders and forms | Elementor 4.3.6, Contact Form 7 6.2.4.1 |
-| Cache | Cache Enabler 1.8.17; simulated proxy caches keyed by host + URL and by path only |
+| Cache | Cache Enabler 1.8.17; Nginx FastCGI cache (host key, plus a path-only key as a negative control); simulated proxy caches |
 | Browser | Chrome via Playwright, desktop and 390×844 mobile |
 
-Not tested yet: Weglot (integration code exists, unit-tested with stubs only), WPML, Gravity Forms, WooCommerce, WP Rocket, LiteSpeed Cache, W3 Total Cache, any CDN, and all hosting providers.
+Not tested: Gravity Forms (needs a licence), Weglot (needs an account; its integration is unit-tested with stubs only), WPML, WooCommerce, WP Rocket, LiteSpeed Cache, W3 Total Cache, WP Super Cache (tried, could not be verified), LiteSpeed/OpenLiteSpeed servers, any CDN, and all hosting providers.
 
-Full matrix: [docs/compatibility.md](docs/compatibility.md). How to run the tests: [docs/testing.md](docs/testing.md).
+Full matrix: [docs/compatibility.md](docs/compatibility.md). Hosting: [docs/hosting/README.md](docs/hosting/README.md). How to run the tests: [docs/testing.md](docs/testing.md).
 
 ## Known limitations
 
 - **Multisite** is not supported. The plugin refuses network activation and does nothing on a network.
 - **Logged-in sessions** are per domain. Admin and login stay on the primary domain, so logged-in features on alias pages (admin bar, comment forms for logged-in users) behave as for a logged-out visitor.
 - **Checkout, membership, SSO and OAuth** flows on aliases are not supported. Use the `wp_domain_alias_rewrite_url` filter to keep such URLs on the primary domain.
-- **`admin-post.php` form handlers** stay on the primary domain, so such forms post cross-domain.
+- **`admin-post.php` forms** post to the primary domain by default, so visitors land on the primary domain after submitting. Specific actions can be kept on the alias with the `wp_domain_alias_admin_post_actions` filter, if their handler doesn't rely on primary-domain cookies.
 - **Page caches keyed only by path** are not supported.
 - **WordPress below 6.7**: font URLs that other plugins print inline in `<style>` tags are not adjusted. Theme and Font Library fonts are.
-- **Structured data** (JSON-LD) always uses primary URLs, even in alias canonical mode.
+- **Per-domain SEO** (alias canonicals, per-domain sitemaps or structured data) is not provided. Use separate sites if each domain must rank on its own.
 - **The www/non-www form of the primary domain** is usually redirected by the host before WordPress runs. The plugin cannot override that.
-- **DNS rebinding**: the health check relies on WordPress core's URL validation, which resolves the hostname separately from the request. This is a limitation in WordPress core.
-- **Hosting providers**: none tested yet. The hosting guides are based on each provider's documented features and must be verified.
+- **Health-check DNS pinning** needs WordPress's cURL transport (the default when the cURL extension is loaded). DNS lookup time is not limited by the 5-second timeout.
+- **Hosting providers**: none tested yet. Nginx and Apache were verified locally; the provider guides are based on documented features and must be verified.
 
 ## Troubleshooting
 
@@ -149,6 +156,8 @@ See [docs/troubleshooting.md](docs/troubleshooting.md). Quick checks:
 | `wp_domain_alias_url_attributes` | Change which HTML attributes count as navigation URLs. |
 | `wp_domain_alias_same_origin_assets` | Return `false` to leave scripts, styles and fonts on the primary domain. |
 | `wp_domain_alias_buffer_output` | Return `false` to skip the HTML pass for a request. |
+| `wp_domain_alias_admin_post_actions` | List `admin-post.php` actions whose frontend forms (and the redirect after them) stay on the alias. Default: none. |
+| `wp_domain_alias_health_check_ips` | Supply the addresses the health check uses for a host instead of resolving DNS (they are still validated). |
 
 ## Security
 
