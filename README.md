@@ -181,5 +181,3 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 ## License
 
 GPL-2.0-or-later. See [LICENSE](LICENSE).
-
-2606:50c0:8001::154
