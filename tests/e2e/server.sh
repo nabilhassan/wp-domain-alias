@@ -13,6 +13,10 @@ case "${1:-start}" in
 		for _ in $(seq 1 50); do curl -fs -o /dev/null -H 'Host: primary.test' "http://127.0.0.1:$PORT/wp-login.php" && { echo "server on $PORT"; exit 0; }; sleep 0.2; done
 		echo "server failed to start"; cat "$DIR/server.log"; exit 1 ;;
 	stop)
-		[ -f "$PIDFILE" ] && kill "$(cat "$PIDFILE")" 2>/dev/null || true
+		# PHP_CLI_SERVER_WORKERS forks workers; stop them along with the parent.
+		if [ -f "$PIDFILE" ]; then
+			pkill -P "$(cat "$PIDFILE")" 2>/dev/null || true
+			kill "$(cat "$PIDFILE")" 2>/dev/null || true
+		fi
 		rm -f "$PIDFILE"; echo stopped ;;
 esac
