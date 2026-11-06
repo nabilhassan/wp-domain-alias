@@ -2,7 +2,7 @@
 
 Show one WordPress site on several approved domains while keeping visitors on the domain they typed. Canonical URLs, sitemaps and structured data keep pointing at the primary domain.
 
-> **Status: 0.1.1-beta.** Tested locally only, on PHP's built-in server and on Nginx and Apache with PHP-FPM over HTTPS (see [what was tested](#what-has-been-tested)). No hosting provider has been tested yet. Try it on a staging copy first.
+> **Current release: 0.1.1.** Tested locally only, on PHP's built-in server and on Nginx and Apache with PHP-FPM over HTTPS (see [what was tested](#what-has-been-tested)). No hosting provider has been tested yet. Try it on a staging copy first.
 
 ![Settings screen](assets/screenshots/settings.png)
 
@@ -38,9 +38,20 @@ What it does **not** do:
 - A single-site installation. Multisite is not supported.
 - Each alias must already reach this WordPress installation, ideally over HTTPS with a valid certificate.
 
+## DNS and hosting prerequisites (do this first)
+
+**Every domain must resolve and route to the same WordPress installation before this plugin can work.** Add the primary domain and every alias (including any `www` hostnames you plan to use) in your hosting provider's domain list.
+
+- **A records:** If your hosting provider assigns an IPv4 address, point each root/apex domain's A record to that **same hosting-assigned IP address**. Any AAAA records must also route to the same installation.
+- **CNAME or managed-host targets:** Some providers require a CNAME or a different DNS target instead of a shared A record. Follow the host's instructions. The real requirement is that all domains reach **the same WordPress installation**.
+- **HTTPS:** Verify valid SSL/TLS certificates for every hostname and that your host/CDN does not redirect approved aliases to the primary hostname.
+- **WordPress settings:** Keep **Settings → General → WordPress Address (URL)** and **Site Address (URL)** on the primary domain.
+
+Wait for DNS propagation and verify each domain reaches the same site. The plugin cannot provision DNS, hosting aliases or certificates. See [hosting guides](docs/hosting/README.md).
+
 ## Installation
 
-1. Set up each alias at your host (domain mapping, DNS, HTTPS). See [hosting guides](docs/hosting/README.md).
+1. Complete the [DNS and hosting prerequisites](#dns-and-hosting-prerequisites-do-this-first) for every alias first.
 2. Download `wp-domain-alias-<version>.zip` from the [Releases](../../releases) page.
 3. In WordPress go to **Plugins → Add New → Upload Plugin**, choose the ZIP, install and activate.
 4. Go to **Settings → WP Domain Alias**, add each alias (add `www.` and non-`www` forms separately if both are used).
@@ -170,3 +181,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 ## License
 
 GPL-2.0-or-later. See [LICENSE](LICENSE).
+
+2606:50c0:8001::154
