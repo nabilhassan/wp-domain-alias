@@ -105,7 +105,7 @@ $admin = new WPDA_Test_Admin( $c->domains, $c->health );
 ob_start();
 $admin->canonical_notice();
 $notice = ob_get_clean();
-ok( false !== strpos( $notice, 'was removed in 0.1.1-beta' ) && false !== strpos( $notice, 'nonce-wpda_dismiss_canonical_notice' ), 'notice shown with a dismiss form' );
+ok( false !== strpos( $notice, 'was removed in 0.1.1' ) && false !== strpos( $notice, 'nonce-wpda_dismiss_canonical_notice' ), 'notice shown with a dismiss form' );
 $GLOBALS['user_caps'] = array( 'edit_posts' => true );
 ob_start();
 $admin->canonical_notice();
