@@ -233,9 +233,14 @@ class Link_Handler {
 		$processor  = new \WP_HTML_Tag_Processor( $html );
 		$count      = 0;
 		$flushed_at = 0;
+		$post_forms = $this->opted_in_admin_post_forms( $html );
+		$form_index = -1;
 
 		while ( $processor->next_tag() ) {
 			$tag = $processor->get_tag();
+			if ( 'FORM' === $tag ) {
+				++$form_index;
+			}
 
 			$names = isset( $attributes[ $tag ] ) ? $attributes[ $tag ] : array();
 			if ( isset( $attributes['*'] ) ) {
@@ -249,7 +254,8 @@ class Link_Handler {
 				if ( ! is_string( $value ) ) {
 					continue;
 				}
-				$new = $this->urls->to_alias( $value, 'href' !== $name );
+				$allow_post = 'FORM' === $tag && 'action' === $name && isset( $post_forms[ $form_index ] );
+				$new        = $this->urls->to_alias( $value, 'href' !== $name, $allow_post );
 				if ( $new !== $value ) {
 					$processor->set_attribute( $name, $new );
 					++$count;
@@ -279,6 +285,57 @@ class Link_Handler {
 			);
 		}
 		return $html;
+	}
+
+	/**
+	 * Finds admin-post.php forms whose action is opted in through the
+	 * wp_domain_alias_admin_post_actions filter.
+	 *
+	 * Read-only pre-scan; runs only when the filter lists actions and the
+	 * page mentions admin-post.php. Forms are identified by their position
+	 * among FORM tags, which the main pass counts the same way.
+	 *
+	 * @param string $html HTML.
+	 * @return array<int,true> Positions of opted-in forms.
+	 */
+	private function opted_in_admin_post_forms( $html ) {
+		$actions = $this->urls->admin_post_actions();
+		if ( empty( $actions ) || false === stripos( $html, 'admin-post.php' ) ) {
+			return array();
+		}
+		$processor = new \WP_HTML_Tag_Processor( $html );
+		$index     = -1;
+		$current   = null;
+		$found     = array();
+		while ( $processor->next_tag( array( 'tag_closers' => 'visit' ) ) ) {
+			$tag = $processor->get_tag();
+			if ( 'FORM' === $tag ) {
+				$current = null;
+				if ( $processor->is_tag_closer() ) {
+					continue;
+				}
+				++$index;
+				$target = $processor->get_attribute( 'action' );
+				$path   = is_string( $target ) ? wp_parse_url( $target, PHP_URL_PATH ) : null;
+				if ( is_string( $path ) && $this->urls->is_admin_post_path( $path ) ) {
+					$current = $index;
+					$query   = wp_parse_url( $target, PHP_URL_QUERY );
+					$args    = array();
+					wp_parse_str( is_string( $query ) ? html_entity_decode( $query ) : '', $args );
+					if ( isset( $args['action'] ) && in_array( $args['action'], $actions, true ) ) {
+						$found[ $index ] = true;
+					}
+				}
+				continue;
+			}
+			if ( null !== $current && ( 'INPUT' === $tag || 'BUTTON' === $tag ) && ! $processor->is_tag_closer() && 'action' === $processor->get_attribute( 'name' ) ) {
+				$value = $processor->get_attribute( 'value' );
+				if ( is_string( $value ) && in_array( $value, $actions, true ) ) {
+					$found[ $current ] = true;
+				}
+			}
+		}
+		return $found;
 	}
 
 	/**

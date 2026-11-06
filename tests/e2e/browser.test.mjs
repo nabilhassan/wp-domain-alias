@@ -167,6 +167,54 @@ describe('Polylang in the browser', needs('polylang'), () => {
   });
 });
 
+describe('admin-post.php forms', () => {
+  const mu = path.join(DIR, 'wordpress/wp-content/mu-plugins/wpda-admin-post-form.php');
+  let pageId;
+  before(() => {
+    fs.copyFileSync(fixture('admin-post-form.php'), mu);
+    pageId = wp('post', 'create', '--post_type=page', '--post_status=publish', '--post_title=Newsletter', '--post_name=newsletter', '--post_content=[wpda_admin_post_form]', '--porcelain');
+  });
+  after(() => {
+    wp('post', 'delete', pageId, '--force');
+    wp('option', 'delete', 'wpda_test_admin_post_optin');
+    fs.rmSync(mu, { force: true });
+  });
+  const submit = async () => {
+    const { context, page, problems } = await newPage();
+    await page.goto('http://alias-one.test/newsletter/');
+    const action = await page.locator('#ap-form').getAttribute('action');
+    await Promise.all([page.waitForNavigation(), page.locator('#ap-form button').click()]);
+    const cookies = (await context.cookies()).filter(c => c.name === 'wpda_form_sent').map(c => c.domain.replace(/^\./, ''));
+    const result = { action, url: page.url(), cookies, problems };
+    await context.close();
+    return result;
+  };
+  test('default: the form posts to the primary domain and the visitor ends there (documented limitation)', async () => {
+    wp('option', 'delete', 'wpda_test_admin_post_optin');
+    const r = await submit();
+    assert.equal(r.action, `http://${PRIMARY}/wp-admin/admin-post.php`);
+    assert.equal(r.url, `http://${PRIMARY}/newsletter/?sent=1`, 'nonce accepted, but the visitor left the alias');
+    assert.deepEqual(r.cookies, [PRIMARY], 'cookie set on the primary domain');
+  });
+  test('opted-in action: the form posts on the alias, nonce accepted, visitor and cookie stay on the alias', async () => {
+    wp('option', 'update', 'wpda_test_admin_post_optin', '1');
+    const r = await submit();
+    assert.equal(r.action, 'http://alias-one.test/wp-admin/admin-post.php');
+    assert.equal(r.url, 'http://alias-one.test/newsletter/?sent=1');
+    assert.deepEqual(r.cookies, ['alias-one.test']);
+    assert.deepEqual(r.problems, []);
+  });
+  test('cross-origin fetch from an alias page to the primary admin-post.php cannot read the response', async () => {
+    const { context, page } = await newPage();
+    await page.goto('http://alias-one.test/newsletter/');
+    const outcome = await page.evaluate(async url => {
+      try { const r = await fetch(url, { method: 'POST', body: new URLSearchParams({ action: 'wpda_test_form' }) }); return `read ${r.status}`; } catch (e) { return 'blocked'; }
+    }, `http://${PRIMARY}/wp-admin/admin-post.php`);
+    assert.equal(outcome, 'blocked', 'browsers block reading cross-origin responses; WordPress only allows its own origin');
+    await context.close();
+  });
+});
+
 describe('admin screen', () => {
   test('settings page and health check (screenshots when WPDA_SCREENSHOTS=1)', async () => {
     wp('transient', 'delete', 'wpda_hc_lock_1');
@@ -184,9 +232,13 @@ describe('admin screen', () => {
     await page.fill('#wpda-alias', '*.invalid-wildcard.test');
     await Promise.all([page.waitForNavigation(), page.getByRole('button', { name: 'Add alias' }).click()]);
     assert.match(await page.locator('.notice-error').innerText(), /Wildcard/);
-    await Promise.all([page.waitForNavigation(), page.getByRole('button', { name: 'Run health check' }).click()]);
+    // With JavaScript the check runs one domain per AJAX request, in place.
+    const url = page.url();
+    await page.getByRole('button', { name: 'Run health check' }).click();
     const health = page.locator('#wpda-health');
     await health.locator('h3', { hasText: 'alias-one.test' }).waitFor();
+    await page.locator('#wpda-health-progress', { hasText: /complete/i }).waitFor();
+    assert.equal(page.url(), url, 'no page reload');
     assert.match(await health.innerText(), /Internal links stay on this domain/);
     if (SHOTS) await health.screenshot({ path: path.join(SHOTS, 'health-check.png') });
     await context.close();

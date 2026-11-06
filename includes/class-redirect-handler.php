@@ -82,7 +82,10 @@ class Redirect_Handler {
 	 * @return string
 	 */
 	public function wp_redirect( $location ) {
-		return $this->urls->is_alias_frontend() ? $this->urls->to_alias( $location ) : $location;
+		if ( $this->urls->is_alias_frontend() || $this->urls->is_alias_admin_post() ) {
+			return $this->urls->to_alias( $location );
+		}
+		return $location;
 	}
 
 	/**

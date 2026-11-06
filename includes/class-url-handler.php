@@ -125,19 +125,76 @@ class Url_Handler {
 	}
 
 	/**
+	 * Whether a path is admin-post.php.
+	 *
+	 * @param string $path URL path.
+	 * @return bool
+	 */
+	public function is_admin_post_path( $path ) {
+		$site = wp_parse_url( (string) get_option( 'siteurl' ), PHP_URL_PATH );
+		$post = rtrim( is_string( $site ) ? $site : '', '/' ) . '/wp-admin/admin-post.php';
+		return strtolower( (string) $path ) === strtolower( $post );
+	}
+
+	/**
+	 * Actions of admin-post.php forms that site code has opted in to keep on the alias.
+	 *
+	 * Empty by default: admin-post.php forms post to the primary domain unless
+	 * their action is listed here.
+	 *
+	 * @return string[]
+	 */
+	public function admin_post_actions() {
+		/**
+		 * Filters the admin-post.php actions whose frontend forms submit on the
+		 * alias the visitor is using (instead of the primary domain), and whose
+		 * redirects return to that alias.
+		 *
+		 * List only public (nopriv) form handlers you have tested on an alias.
+		 * Logged-in sessions belong to the primary domain, so handlers that need a
+		 * logged-in user will not see one on an alias.
+		 *
+		 * @param string[] $actions Action names (the form's "action" field). Default empty.
+		 */
+		$actions = apply_filters( 'wp_domain_alias_admin_post_actions', array() );
+		$clean   = array();
+		foreach ( is_array( $actions ) ? $actions : array() as $action ) {
+			if ( is_string( $action ) && '' !== $action && sanitize_key( $action ) === $action ) {
+				$clean[] = $action;
+			}
+		}
+		return array_values( array_unique( $clean ) );
+	}
+
+	/**
+	 * Whether this request is an opted-in admin-post.php action on an alias.
+	 *
+	 * @return bool
+	 */
+	public function is_alias_admin_post() {
+		if ( '' === $this->domains->current_alias() || ! $this->is_admin_post_path( $this->request_path ) ) {
+			return false;
+		}
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Only compared with an allowlist; the handler verifies its own nonce.
+		$action = isset( $_REQUEST['action'] ) && is_string( $_REQUEST['action'] ) ? sanitize_key( wp_unslash( $_REQUEST['action'] ) ) : '';
+		return '' !== $action && in_array( $action, $this->admin_post_actions(), true );
+	}
+
+	/**
 	 * Moves an own-site URL onto the current request alias.
 	 *
-	 * @param mixed $url        URL.
-	 * @param bool  $allow_ajax Allow /wp-admin/admin-ajax.php to move.
+	 * @param mixed $url              URL.
+	 * @param bool  $allow_ajax       Allow /wp-admin/admin-ajax.php to move.
+	 * @param bool  $allow_admin_post Allow /wp-admin/admin-post.php to move (opted-in forms only).
 	 * @return mixed The rewritten URL, or the input unchanged.
 	 */
-	public function to_alias( $url, $allow_ajax = false ) {
+	public function to_alias( $url, $allow_ajax = false, $allow_admin_post = false ) {
 		$alias = $this->domains->current_alias();
 		if ( '' === $alias ) {
 			return $url;
 		}
 		$scheme = is_ssl() ? 'https' : $this->domains->primary_scheme();
-		return $this->move( $url, $this->domains->own_hosts(), $scheme, $alias, $allow_ajax );
+		return $this->move( $url, $this->domains->own_hosts(), $scheme, $alias, $allow_ajax, $allow_admin_post );
 	}
 
 	/**
@@ -152,9 +209,10 @@ class Url_Handler {
 	 * @param string   $scheme     Target scheme.
 	 * @param string   $to         Target host.
 	 * @param bool     $allow_ajax Allow the frontend AJAX endpoint to move.
+	 * @param bool     $allow_admin_post Allow admin-post.php to move.
 	 * @return mixed
 	 */
-	public function move( $url, array $from, $scheme, $to, $allow_ajax = false ) {
+	public function move( $url, array $from, $scheme, $to, $allow_ajax = false, $allow_admin_post = false ) {
 		if ( ! is_string( $url ) || '' === $url || ! preg_match( '~^(?:(https?):)?//([^/?#]*)(.*)$~is', $url, $m ) ) {
 			return $url;
 		}
@@ -167,7 +225,7 @@ class Url_Handler {
 		}
 		$path = wp_parse_url( 'http://placeholder' . $m[3], PHP_URL_PATH );
 		$path = is_string( $path ) ? $path : '/';
-		if ( $this->is_protected_path( $path ) && ! ( $allow_ajax && $this->is_ajax_path( $path ) ) ) {
+		if ( $this->is_protected_path( $path ) && ! ( $allow_ajax && $this->is_ajax_path( $path ) ) && ! ( $allow_admin_post && $this->is_admin_post_path( $path ) ) ) {
 			return $url;
 		}
 		/**
