@@ -1,0 +1,43 @@
+name: Release
+
+# Builds the installable ZIP for a version tag and attaches it to a GitHub
+# release. Tags containing "-" (for example v0.1.0-beta) become pre-releases.
+# Nothing is published to WordPress.org.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: none
+      - name: Check the tag matches the plugin version
+        run: |
+          version="$(sed -n 's/^ \* Version: *//p' wp-domain-alias.php | head -1 | tr -d '[:space:]')"
+          test "v${version}" = "${GITHUB_REF_NAME}" || { echo "Tag ${GITHUB_REF_NAME} does not match plugin version ${version}"; exit 1; }
+          echo "VERSION=${version}" >> "$GITHUB_ENV"
+      - run: bin/build-zip.sh
+      - name: Create or update the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          zip="dist/wp-domain-alias-${VERSION}.zip"
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            gh release upload "${GITHUB_REF_NAME}" "$zip" "$zip.sha256" --clobber
+          else
+            flags=""
+            case "${GITHUB_REF_NAME}" in *-*) flags="--prerelease" ;; esac
+            gh release create "${GITHUB_REF_NAME}" "$zip" "$zip.sha256" $flags \
+              --title "WP Domain Alias ${VERSION}" \
+              --notes "See CHANGELOG.md for changes. Install: Plugins → Add New → Upload Plugin, choose the ZIP."
+          fi

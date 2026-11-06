@@ -1,0 +1,8 @@
+.wp-test*/
+node_modules/
+vendor/
+dist/
+test-results/
+playwright-report/
+.DS_Store
+*.log

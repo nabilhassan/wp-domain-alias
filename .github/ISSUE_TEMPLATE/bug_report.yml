@@ -1,0 +1,60 @@
+name: Bug report
+description: Something does not work as documented.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use placeholder domains (`primary-example.com`, `alias-example.com`). Do not post credentials, real client domains or private URLs.
+        Security problems: please follow SECURITY.md instead of opening an issue.
+  - type: input
+    id: version
+    attributes:
+      label: Plugin version
+      placeholder: 0.1.0-beta
+    validations:
+      required: true
+  - type: input
+    id: wp
+    attributes:
+      label: WordPress and PHP versions
+      placeholder: WordPress 7.1, PHP 8.3
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: Installed as
+      options: [Regular plugin, Must-Use plugin]
+    validations:
+      required: true
+  - type: input
+    id: hosting
+    attributes:
+      label: Hosting, cache and CDN
+      placeholder: e.g. shared hosting with cPanel, WP Rocket, Cloudflare
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Add alias-example.com
+        2. Visit https://alias-example.com/about/
+        3. Click the menu link …
+    validations:
+      required: true
+  - type: textarea
+    id: health
+    attributes:
+      label: Health check output (domains replaced with placeholders)
+      render: text
+  - type: textarea
+    id: plugins
+    attributes:
+      label: Other active plugins and theme

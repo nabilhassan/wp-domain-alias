@@ -1,0 +1,19 @@
+.wpda .wpda-intro { max-width: 52rem; font-size: 14px; }
+.wpda .wpda-card { background: #fff; border: 1px solid #c3c4c7; border-radius: 4px; padding: 4px 20px 16px; margin: 16px 0; max-width: 60rem; }
+.wpda .wpda-card h2 { margin-top: 16px; }
+.wpda .wpda-domains td, .wpda .wpda-checks td, .wpda .wpda-checks th { vertical-align: middle; }
+.wpda .wpda-actions { text-align: right; width: 1%; white-space: nowrap; }
+.wpda .wpda-actions form { margin: 0; }
+.wpda .wpda-add { margin-top: 16px; }
+.wpda .wpda-add label { font-weight: 600; }
+.wpda .wpda-status { width: 1%; white-space: nowrap; }
+.wpda .wpda-checks th { width: 12rem; }
+.wpda .wpda-badge { display: inline-block; min-width: 4.5rem; text-align: center; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; }
+.wpda .wpda-pass { background: #edfaef; color: #00450c; }
+.wpda .wpda-warn { background: #fcf9e8; color: #614200; }
+.wpda .wpda-fail { background: #fcf0f1; color: #8a2424; }
+.wpda .wpda-info { background: #f0f6fc; color: #0a4b78; }
+@media screen and (max-width: 782px) {
+	.wpda .wpda-checks th { width: auto; }
+	.wpda .wpda-add .regular-text { width: 100%; margin-bottom: 8px; }
+}

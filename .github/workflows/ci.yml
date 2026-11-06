@@ -1,0 +1,137 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: PHP ${{ matrix.php }} syntax
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.4', '8.0', '8.1', '8.2', '8.3', '8.4']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          tools: none
+      - name: Lint shipped PHP files
+        run: find wp-domain-alias.php uninstall.php includes mu-loader -name '*.php' -print0 | xargs -0 -n1 php -l
+
+  phpcs:
+    name: Coding standards
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+      - run: composer install --no-interaction --no-progress
+      - run: vendor/bin/phpcs
+
+  unit:
+    name: Unit tests (PHP ${{ matrix.php }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.4', '8.4']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: intl, mbstring
+          coverage: none
+          tools: none
+      - name: Download WordPress core (for the HTML API)
+        run: |
+          curl -fsSL --retry 3 -o /tmp/wp.zip https://wordpress.org/latest.zip
+          unzip -q /tmp/wp.zip -d /tmp
+      - run: php tests/unit/run.php
+        env:
+          WP_CORE_DIR: /tmp/wordpress
+
+  e2e:
+    name: Integration + browser (WordPress ${{ matrix.wp }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - wp: latest
+            plugins: polylang contact-form-7 elementor wordpress-seo seo-by-rank-math cache-enabler
+            suites: tests/e2e/integration.test.mjs tests/e2e/compat.test.mjs tests/e2e/cache.test.mjs
+          - wp: '6.4.5'
+            plugins: ''
+            suites: tests/e2e/integration.test.mjs
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: intl, mbstring, pdo_sqlite, sqlite3, zip
+          coverage: none
+          tools: none
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Set up WordPress
+        run: tests/e2e/setup-wp.sh ${{ matrix.wp }} ${{ matrix.plugins }}
+      - run: tests/e2e/server.sh start
+      - name: Integration suites
+        run: node --test --test-concurrency=1 ${{ matrix.suites }}
+      - name: Browser suite
+        run: node --test --test-concurrency=1 tests/e2e/browser.test.mjs
+      - name: Server log on failure
+        if: failure()
+        run: |
+          tail -n 100 .wp-test/server.log || true
+          tail -n 100 .wp-test/wordpress/wp-content/debug.log || true
+
+  lifecycle:
+    name: Install / uninstall / Must-Use
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      WPDA_DIR: ${{ github.workspace }}/.wp-test-lifecycle
+      WPDA_PORT: '8892'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: intl, mbstring, pdo_sqlite, sqlite3, zip
+          coverage: none
+          tools: none
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: bin/build-zip.sh
+      - run: tests/e2e/setup-wp.sh latest
+        env:
+          WPDA_NO_LINK: '1'
+      - run: tests/e2e/server.sh start
+      - run: node --test --test-concurrency=1 tests/e2e/lifecycle.test.mjs

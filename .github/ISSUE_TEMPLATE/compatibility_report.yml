@@ -1,0 +1,35 @@
+name: Compatibility report
+description: Report a host, plugin, theme or cache you tested with WP Domain Alias, whether it worked or not.
+labels: [compatibility]
+body:
+  - type: markdown
+    attributes:
+      value: Use placeholder domains. Do not post credentials or private URLs.
+  - type: input
+    id: component
+    attributes:
+      label: What did you test? (name and version)
+      placeholder: e.g. WP Rocket 3.17, or Kinsta
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Plugin, WordPress and PHP versions
+      placeholder: 0.1.0-beta, WordPress 7.1, PHP 8.3
+    validations:
+      required: true
+  - type: dropdown
+    id: result
+    attributes:
+      label: Result
+      options: [Works, Works with changes (describe below), Does not work]
+    validations:
+      required: true
+  - type: textarea
+    id: checks
+    attributes:
+      label: What you checked
+      description: For example navigation and mobile menu on the alias, forms, canonical tag, cache isolation with Diagnostics on, health check result.
+    validations:
+      required: true

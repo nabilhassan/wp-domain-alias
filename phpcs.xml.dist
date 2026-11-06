@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+<ruleset name="WP Domain Alias">
+	<description>WordPress Coding Standards and PHP compatibility for the shipped plugin code.</description>
+
+	<file>wp-domain-alias.php</file>
+	<file>uninstall.php</file>
+	<file>includes</file>
+	<file>mu-loader</file>
+
+	<arg name="extensions" value="php"/>
+	<arg value="sp"/>
+
+	<config name="testVersion" value="7.4-"/>
+	<config name="minimum_wp_version" value="6.4"/>
+
+	<rule ref="WordPress">
+		<!-- Class files are named class-*.php inside a namespace; the WordPress file-name sniff expects no namespace. -->
+		<exclude name="WordPress.Files.FileName.InvalidClassFileName"/>
+	</rule>
+	<rule ref="WordPress.WP.I18n">
+		<properties>
+			<property name="text_domain" type="array">
+				<element value="wp-domain-alias"/>
+			</property>
+		</properties>
+	</rule>
+	<rule ref="WordPress.NamingConventions.PrefixAllGlobals">
+		<properties>
+			<property name="prefixes" type="array">
+				<element value="wp_domain_alias"/>
+				<element value="WP_Domain_Alias"/>
+				<element value="wpda"/>
+			</property>
+		</properties>
+	</rule>
+	<rule ref="PHPCompatibilityWP"/>
+</ruleset>
