@@ -155,7 +155,7 @@ class Health_Check {
 			$checks[] = $this->item(
 				self::INFO,
 				__( 'Cache Enabler', 'wp-domain-alias' ),
-				__( 'Alias copies are cleared whenever content changes. As a safety net, enable "Cache Expiry" in Cache Enabler so alias pages can never stay stale indefinitely.', 'wp-domain-alias' )
+				__( 'Alias copies are cleared whenever content changes. As a safety net, enable "Expiration" in the Cache Enabler settings so alias pages can never stay stale indefinitely.', 'wp-domain-alias' )
 			);
 		}
 

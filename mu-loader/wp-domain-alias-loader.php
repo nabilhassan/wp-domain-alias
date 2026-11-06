@@ -3,7 +3,7 @@
  * Plugin Name:       WP Domain Alias (Must-Use loader)
  * Plugin URI:        https://github.com/nabilhassan/wp-domain-alias
  * Description:       Loads WP Domain Alias from wp-content/mu-plugins/wp-domain-alias/. Must-Use plugins cannot be deactivated from the Plugins screen; see docs/must-use.md to remove it.
- * Version:           0.1.0-beta
+ * Version:           0.1.1-beta
  * Requires at least: 6.4
  * Requires PHP:      7.4
  * Author:            Md Sazzadul Hossen Nabil

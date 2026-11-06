@@ -3,7 +3,7 @@ group( 'Plugin bootstrap' );
 wpda_test_reset();
 require dirname( __DIR__, 2 ) . '/wp-domain-alias.php';
 ok( defined( 'WP_DOMAIN_ALIAS_DUPLICATE' ), 'second copy is detected and does not boot' );
-same( WP_DOMAIN_ALIAS_VERSION, '0.1.0-beta', 'version constant' );
+same( WP_DOMAIN_ALIAS_VERSION, '0.1.1-beta', 'version constant' );
 
 wpda_test_reset();
 WP_Domain_Alias\Plugin::activate();
