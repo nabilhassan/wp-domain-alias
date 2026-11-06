@@ -21,7 +21,13 @@ async function newPage(viewport = { width: 1280, height: 900 }) {
   const problems = [];
   page.on('console', m => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });
   page.on('pageerror', e => problems.push(`pageerror: ${e.message}`));
-  page.on('requestfailed', r => problems.push(`requestfailed: ${r.url()} ${r.failure()?.errorText}`));
+  // net::ERR_ABORTED means the browser cancelled the request, typically
+  // because the test navigated away while a late script (such as the emoji
+  // loader) was still loading. Blocked or failed loads (CORS, DNS, TLS)
+  // report other errors and a console message, and are still collected.
+  page.on('requestfailed', r => {
+    if (r.failure()?.errorText !== 'net::ERR_ABORTED') problems.push(`requestfailed: ${r.url()} ${r.failure()?.errorText}`);
+  });
   return { context, page, problems };
 }
 const host = page => new URL(page.url()).hostname;
