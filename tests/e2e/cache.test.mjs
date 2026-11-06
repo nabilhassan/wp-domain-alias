@@ -7,7 +7,9 @@
 import { test, before, after, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { PRIMARY, ALIASES, wp, setSettings, request, navigationUrls, isProtected } from './lib.mjs';
+import fs from 'node:fs';
+import path from 'node:path';
+import { DIR, PRIMARY, ALIASES, wp, setSettings, request, navigationUrls, isProtected } from './lib.mjs';
 
 const HTML = { Accept: 'text/html' };
 const linkHosts = html => [...new Set(navigationUrls(html, 'http://x.invalid/').filter(n => !isProtected(n.url)).map(n => n.url.hostname))];
@@ -24,15 +26,22 @@ describe('Cache Enabler page cache', () => {
     // WP-CLI activation does not run Cache Enabler's own activation routine
     // (drop-in + WP_CACHE), so trigger it explicitly.
     wp('eval', 'do_action( "activate_cache-enabler/cache-enabler.php", false );');
-    // Cache Enabler writes its settings file on a request after activation
-    // and does not cache that request; how many requests that takes varies,
-    // so warm up until a cached copy is actually served.
+    // Cache Enabler writes its settings file on a request after activation.
+    // On a fresh site it then skips caching for a short while: back-to-back
+    // requests stayed uncached for 10+ requests, with or without this plugin
+    // active (measured locally; this made CI fail on a fresh runner). Warm up
+    // with spaced requests until a cached copy is actually served.
     let ready = false;
-    for (let i = 0; i < 6 && !ready; i++) {
+    let attempts = 0;
+    const deadline = Date.now() + 15000;
+    while (!ready && Date.now() < deadline) {
+      attempts++;
       const r = await request(PRIMARY, '/', { headers: HTML });
       ready = r.headers['x-cache-handler'] === 'cache-enabler-engine';
+      if (!ready) await new Promise(res => setTimeout(res, 500));
     }
-    assert.ok(ready, 'Cache Enabler serves cached pages after warm-up');
+    assert.ok(ready, `Cache Enabler serves cached pages after warm-up (${attempts} requests in 15 s)`);
+    console.log(`# Cache Enabler warm-up: ${attempts} requests`);
     wp('cache-enabler', 'clear');
   });
   after(() => {
@@ -108,6 +117,65 @@ describe('Cache Enabler page cache', () => {
       wp('cache-enabler', 'clear');
     }
   });
+  test('alias first, then primary: each host gets its own copy', async () => {
+    wp('cache-enabler', 'clear');
+    for (const host of ['alias-one.test', PRIMARY, 'alias-one.test', PRIMARY]) {
+      const r = await request(host, '/test-post-6/', { headers: HTML });
+      assert.deepEqual(linkHosts(r.body), [host], host);
+    }
+    const warm = await request(PRIMARY, '/test-post-6/', { headers: HTML });
+    assert.equal(warm.headers['x-cache-handler'], 'cache-enabler-engine');
+  });
+  test('navigation (menu) edit: alias copies are never staler than the primary copy', async (t) => {
+    const nav = wp('post', 'list', '--post_type=wp_navigation', '--field=ID', '--posts_per_page=1');
+    if (!nav) { t.skip('the active theme created no navigation menu post'); return; }
+    wp('cache-enabler', 'clear');
+    for (const host of [PRIMARY, ...ALIASES]) await request(host, '/about/', { headers: HTML });
+    const original = wp('post', 'get', nav, '--field=post_content');
+    wp('post', 'update', nav, `--post_content=${original}<!-- wp:navigation-link {"label":"MenuEditProbe","url":"/contact/","kind":"custom"} /-->`);
+    try {
+      const primary = await request(PRIMARY, '/about/', { headers: HTML });
+      assert.deepEqual(linkHosts(primary.body).filter(h => h !== 'example.org' && !h.endsWith('evil.example')), [PRIMARY]);
+      for (const host of ALIASES) {
+        const r = await request(host, '/about/', { headers: HTML });
+        assert.equal(r.headers['x-cache-handler'], undefined, `${host} copy purged`);
+        assert.ok(r.body.includes('MenuEditProbe'), `${host} shows the edited menu`);
+        assert.deepEqual(linkHosts(r.body).filter(h => h !== 'example.org' && !h.endsWith('evil.example')), [host]);
+      }
+      // Cache Enabler's default settings clear only the saved post's own page,
+      // so the primary copy may still be the old one; that is Cache Enabler's
+      // behaviour, recorded here so a change in it is noticed.
+      t.diagnostic(`primary copy after menu edit: ${primary.body.includes('MenuEditProbe') ? 'refreshed' : 'stale (Cache Enabler default)'}`);
+    } finally {
+      wp('post', 'update', nav, `--post_content=${original}`);
+      wp('cache-enabler', 'clear');
+    }
+  });
+  test('expired copies are regenerated per host, never served across hosts', async () => {
+    const settings = JSON.parse(wp('option', 'get', 'cache_enabler', '--format=json'));
+    wp('option', 'update', 'cache_enabler', JSON.stringify({ ...settings, cache_expires: 1, cache_expiry_time: 1 }), '--format=json');
+    try {
+      wp('cache-enabler', 'clear');
+      for (const host of [PRIMARY, 'alias-one.test']) {
+        await request(host, '/test-post-7/', { headers: HTML });
+        const warm = await request(host, '/test-post-7/', { headers: HTML });
+        assert.equal(warm.headers['x-cache-handler'], 'cache-enabler-engine', `${host} cached`);
+      }
+      // Age only the alias's files past the one-hour expiry.
+      const old = new Date(Date.now() - 2 * 3600 * 1000);
+      const age = d => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const f = path.join(d, e.name); if (e.isDirectory()) age(f); else fs.utimesSync(f, old, old); } };
+      age(path.join(DIR, 'wordpress/wp-content/cache/cache-enabler/alias-one.test'));
+      const expired = await request('alias-one.test', '/test-post-7/', { headers: HTML });
+      assert.equal(expired.headers['x-cache-handler'], undefined, 'expired alias copy regenerated');
+      assert.deepEqual(linkHosts(expired.body), ['alias-one.test']);
+      const primary = await request(PRIMARY, '/test-post-7/', { headers: HTML });
+      assert.equal(primary.headers['x-cache-handler'], 'cache-enabler-engine', 'primary copy unaffected');
+      assert.deepEqual(linkHosts(primary.body), [PRIMARY]);
+    } finally {
+      wp('option', 'update', 'cache_enabler', JSON.stringify(settings), '--format=json');
+      wp('cache-enabler', 'clear');
+    }
+  });
   test('autosaves and revisions do not purge alias copies', async () => {
     await request('alias-one.test', '/contact/', { headers: HTML });
     const { contact } = JSON.parse(wp('option', 'get', 'wpda_test_ids', '--format=json'));
@@ -155,7 +223,7 @@ describe('reverse-proxy cache keyed on host + URL (supported)', () => {
   test('warm cache keeps every host isolated', async () => {
     for (const round of ['MISS', 'HIT']) {
       for (const host of [PRIMARY, ...ALIASES]) {
-        const r = await request(host, '/contact/', { port: p.port });
+        const r = await request(host, '/contact/', { port: p.port, scheme: 'http' });
         assert.equal(r.headers['x-proxy-cache'], round);
         assert.deepEqual(linkHosts(r.body), [host], `${round} ${host}`);
       }
@@ -168,9 +236,9 @@ describe('reverse-proxy cache keyed on path only (unsupported, demonstrates the 
   before(async () => { p = await proxy(req => req.url); });
   after(() => p.server.close());
   test('the alias receives the primary copy — such a cache must be reconfigured', async () => {
-    const first = await request(PRIMARY, '/contact/', { port: p.port });
+    const first = await request(PRIMARY, '/contact/', { port: p.port, scheme: 'http' });
     assert.deepEqual(linkHosts(first.body), [PRIMARY]);
-    const poisoned = await request('alias-one.test', '/contact/', { port: p.port });
+    const poisoned = await request('alias-one.test', '/contact/', { port: p.port, scheme: 'http' });
     assert.equal(poisoned.headers['x-proxy-cache'], 'HIT');
     assert.deepEqual(linkHosts(poisoned.body), [PRIMARY], 'cross-host cache hit observed');
   });
