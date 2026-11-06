@@ -1,6 +1,6 @@
 # Compatibility matrix
 
-Status of 0.1.1-beta (2026-11-06). Status words:
+Status of 0.1.1 (2026-11-06; same runtime as the 0.1.1-beta build). Status words:
 
 - **Verified**: covered by the automated tests in this repository, which passed in the environments named.
 - **Simulated**: tested against a stand-in (a stub or a small proxy), not the real product.
