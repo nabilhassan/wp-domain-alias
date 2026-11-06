@@ -3,8 +3,7 @@
 import { test, before, after, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  PRIMARY, ALIASES, wp, setSettings, request, navigationUrls, canonicals, hreflangs, meta, isProtected, login, tags,
-} from './lib.mjs';
+  PRIMARY, ALIASES, wp, setSettings, request, navigationUrls, canonicals, hreflangs, meta, isProtected, login, tags, SCHEME } from './lib.mjs';
 
 const HOSTS = [PRIMARY, ...ALIASES];
 let ids;
@@ -35,7 +34,7 @@ describe('pages on every host', () => {
         assert.equal(r.status, 200, `HTTP ${r.status} location=${r.headers.location}`);
         assert.equal(r.headers.location, undefined);
         assert.match(r.headers['content-type'], /text\/html/);
-        assertNavigationOn(r.body, host, `http://${host}${page}`, `${host}${page}`);
+        assertNavigationOn(r.body, host, `${SCHEME}://${host}${page}`, `${host}${page}`);
         const c = canonicals(r.body);
         if (['/about/', '/contact/', '/test-post-3/'].includes(page)) { // core prints canonicals on singular views only
           assert.equal(c.length, 1, `one canonical: ${c}`);
@@ -57,16 +56,16 @@ describe('links, forms and endpoints on an alias', () => {
   const attr = (html, id, name) => tags(html).find(t => t.attrs.id === id)?.attrs[name];
 
   test('absolute internal link keeps query and fragment', () => {
-    assert.equal(attr(about, 'abs-internal', 'href'), 'http://alias-one.test/contact/?utm_source=test&gclid=abc#form');
+    assert.equal(attr(about, 'abs-internal', 'href'), `${SCHEME}://alias-one.test/contact/?utm_source=test&gclid=abc#form`);
   });
   test('relative link untouched', () => assert.equal(attr(about, 'rel-internal', 'href'), '/contact/'));
   test('external link untouched', () => assert.equal(attr(about, 'external', 'href'), 'https://example.org/page/'));
   test('look-alike domain untouched', () => assert.equal(attr(about, 'lookalike', 'href'), 'https://primary.test.evil.example/'));
   test('admin link stays on primary', () => assert.equal(new URL(attr(about, 'admin-link', 'href')).hostname, PRIMARY));
   test('login link stays on primary', () => assert.equal(new URL(attr(about, 'login-link', 'href')).hostname, PRIMARY));
-  test('form action', () => assert.equal(attr(contact, 'plain-form', 'action'), 'http://alias-one.test/contact/'));
-  test('button formaction', () => assert.match(contact, /formaction="http:\/\/alias-one\.test\/about\/"/));
-  test('clickable column', () => assert.equal(attr(contact, 'clickable', 'data-column-clickable'), 'http://alias-one.test/about/'));
+  test('form action', () => assert.equal(attr(contact, 'plain-form', 'action'), `${SCHEME}://alias-one.test/contact/`));
+  test('button formaction', () => assert.ok(contact.includes(`formaction="${SCHEME}://alias-one.test/about/"`)));
+  test('clickable column', () => assert.equal(attr(contact, 'clickable', 'data-column-clickable'), `${SCHEME}://alias-one.test/about/`));
   test('REST discovery link same-origin', () => {
     const l = tags(about).find(t => t.name === 'link' && t.attrs.rel === 'https://api.w.org/');
     assert.equal(new URL(l.attrs.href).hostname, 'alias-one.test');
@@ -92,17 +91,17 @@ describe('status codes and redirects', () => {
     test(`${host}: 404 keeps the hostname`, async () => {
       const r = await request(host, '/no-such-page-xyz/');
       assert.equal(r.status, 404);
-      assertNavigationOn(r.body, host, `http://${host}/`, '404');
+      assertNavigationOn(r.body, host, `${SCHEME}://${host}/`, '404');
     });
     test(`${host}: missing trailing slash normalised on the alias`, async () => {
       const r = await request(host, '/about?utm_source=qa&gclid=g1');
       assert.equal(r.status, 301);
-      assert.equal(r.headers.location, `http://${host}/about/?utm_source=qa&gclid=g1`);
+      assert.equal(r.headers.location, `${SCHEME}://${host}/about/?utm_source=qa&gclid=g1`);
     });
     test(`${host}: ?p= / ?page_id= normalised on the alias`, async () => {
       const r = await request(host, `/?page_id=${ids.about}&utm_campaign=c`);
       assert.equal(r.status, 301);
-      assert.equal(r.headers.location, `http://${host}/about/?utm_campaign=c`);
+      assert.equal(r.headers.location, `${SCHEME}://${host}/about/?utm_campaign=c`);
     });
     test(`${host}: admin goes to primary login`, async () => {
       const r = await request(host, '/wp-admin/');
@@ -128,7 +127,7 @@ describe('REST, AJAX, sitemap and robots', () => {
   test('REST API answers on an alias', async () => {
     const r = await request('alias-one.test', '/wp-json/');
     assert.equal(r.status, 200);
-    assert.equal(JSON.parse(r.body).home, `http://${PRIMARY}`, 'REST data keeps the configured home URL');
+    assert.equal(JSON.parse(r.body).home, `${SCHEME}://${PRIMARY}`, 'REST data keeps the configured home URL');
   });
   test('REST post data keeps primary links (not rewritten)', async () => {
     const r = await request('alias-one.test', `/wp-json/wp/v2/pages/${ids.about}`);
@@ -154,7 +153,7 @@ describe('REST, AJAX, sitemap and robots', () => {
   }
   test('robots.txt sitemap line points to primary', async () => {
     const r = await request('alias-two.test', '/robots.txt');
-    assert.match(r.body, /Sitemap: http:\/\/primary\.test\/wp-sitemap\.xml/);
+    assert.ok(r.body.includes(`Sitemap: ${SCHEME}://primary.test/wp-sitemap.xml`), r.body);
   });
   test('feed is not rewritten', async () => {
     const r = await request('alias-one.test', '/feed/');
@@ -167,9 +166,14 @@ describe('host header safety', () => {
   for (const host of ['evil.test', 'alias-one.test.evil.test', 'alias-one.test:8443', 'alias-one.test.', '127.0.0.1', 'ALIAS-ONE.TEST']) {
     test(`Host: ${host}`, async () => {
       const r = await request(host, '/about/');
-      const hosts = new Set(navigationUrls(r.body, 'http://primary.test/').filter(n => !isProtected(n.url)).map(n => n.url.hostname));
+      const hosts = new Set(navigationUrls(r.body, `${SCHEME}://primary.test/`).filter(n => !isProtected(n.url)).map(n => n.url.hostname));
       if (host === 'ALIAS-ONE.TEST') {
         assert.deepEqual([...hosts], ['alias-one.test'], 'case-insensitive match');
+      } else if (host === 'alias-one.test.') {
+        // PHP rejects the trailing dot itself, but Nginx strips it before PHP
+        // sees the header. Either way the dotted name never reaches the output.
+        assert.ok([...hosts].every(h => !h.endsWith('.')), 'no trailing-dot hostname in output');
+        assert.ok([...hosts].every(h => h === PRIMARY || h === 'alias-one.test'), [...hosts].join());
       } else {
         assert.ok(!r.body.includes('evil.test"') && !r.body.includes(':8443'), 'unapproved host never appears in output');
         assert.ok(!hosts.has('alias-one.test'), 'unapproved host is not treated as an alias');
@@ -180,7 +184,7 @@ describe('host header safety', () => {
     const spoof = await request('primary.test', '/about/', { headers: { 'X-Forwarded-Host': 'evil.test' } });
     assert.ok(!spoof.body.includes('evil.test'), 'forwarded host never appears in output');
     const asAlias = await request('evil.test', '/about/', { headers: { 'X-Forwarded-Host': 'alias-one.test' } });
-    const hosts = new Set(navigationUrls(asAlias.body, 'http://primary.test/').filter(n => !isProtected(n.url)).map(n => n.url.hostname));
+    const hosts = new Set(navigationUrls(asAlias.body, `${SCHEME}://primary.test/`).filter(n => !isProtected(n.url)).map(n => n.url.hostname));
     assert.ok(!hosts.has('alias-one.test'), 'forwarded alias name does not activate the alias');
   });
 });
@@ -191,18 +195,18 @@ describe('settings change behaviour', () => {
     setSettings({ enabled: false });
     const r = await request('alias-one.test', '/about/');
     assert.equal(r.status, 200);
-    const hosts = new Set(navigationUrls(r.body, 'http://alias-one.test/').filter(n => !isProtected(n.url)).map(n => n.url.hostname));
+    const hosts = new Set(navigationUrls(r.body, `${SCHEME}://alias-one.test/`).filter(n => !isProtected(n.url)).map(n => n.url.hostname));
     assert.ok(hosts.has(PRIMARY) && !hosts.has('alias-one.test'));
   });
   test('removed alias is no longer preserved', async () => {
     setSettings({ aliases: ['alias-two.test'] });
     const r = await request('alias-one.test', '/about/');
-    assert.ok(!navigationUrls(r.body, 'http://alias-one.test/').some(n => n.url.hostname === 'alias-one.test'));
+    assert.ok(!navigationUrls(r.body, `${SCHEME}://alias-one.test/`).some(n => n.url.hostname === 'alias-one.test'));
   });
   test('a stored 0.1.0-beta "alias" canonical setting still yields one primary canonical', async () => {
     setSettings({ canonical_mode: 'alias' });
     const r = await request('alias-two.test', '/about/');
-    assert.deepEqual(canonicals(r.body), [`http://${PRIMARY}/about/`]);
+    assert.deepEqual(canonicals(r.body), [`${SCHEME}://${PRIMARY}/about/`]);
   });
   test('diagnostics header and comment', async () => {
     setSettings({ diagnostics: true });

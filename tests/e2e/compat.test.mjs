@@ -5,8 +5,7 @@ import { test, before, after, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import {
-  ROOT, PRIMARY, ALIASES, OWN, wp, setSettings, request, navigationUrls, canonicals, hreflangs, meta, jsonLd, isProtected, tags,
-} from './lib.mjs';
+  ROOT, PRIMARY, ALIASES, OWN, wp, setSettings, request, navigationUrls, canonicals, hreflangs, meta, jsonLd, isProtected, tags, SCHEME } from './lib.mjs';
 
 const fixture = name => path.join(ROOT, 'tests/e2e/fixtures', name);
 const ids = () => JSON.parse(wp('option', 'get', 'wpda_test_ids', '--format=json'));
@@ -21,7 +20,7 @@ function ownUrlsIn(value, out = []) {
 }
 
 function assertNavigation(html, host) {
-  const urls = navigationUrls(html, `http://${host}/`).filter(n => !isProtected(n.url));
+  const urls = navigationUrls(html, `${SCHEME}://${host}/`).filter(n => !isProtected(n.url));
   assert.ok(urls.length > 2, 'has internal links');
   assert.deepEqual(urls.filter(n => n.url.hostname !== host).map(n => n.url.href), []);
 }
@@ -53,7 +52,7 @@ for (const seo of [
       test(`${host}: one primary canonical, primary og:url and structured data`, async () => {
         const r = await request(host, '/about/');
         assert.equal(r.status, 200);
-        assert.deepEqual(canonicals(r.body), [`http://${PRIMARY}/about/`]);
+        assert.deepEqual(canonicals(r.body), [`${SCHEME}://${PRIMARY}/about/`]);
         const og = meta(r.body, 'og:url');
         assert.ok(og.length <= 1 && og.every(u => new URL(u).hostname === PRIMARY), `og:url ${og}`);
         const schema = jsonLd(r.body);
@@ -66,7 +65,7 @@ for (const seo of [
     test('a stored 0.1.0-beta "alias" canonical setting still yields one primary canonical and og:url', async () => {
       setSettings({ canonical_mode: 'alias' });
       const r = await request('alias-one.test', '/about/');
-      assert.deepEqual(canonicals(r.body), [`http://${PRIMARY}/about/`]);
+      assert.deepEqual(canonicals(r.body), [`${SCHEME}://${PRIMARY}/about/`]);
       assert.ok(meta(r.body, 'og:url').every(u => new URL(u).hostname === PRIMARY));
       setSettings({});
     });
@@ -94,7 +93,7 @@ describe('Polylang (multilingual, /es/ directory)', () => {
     test(`${host}/es/sobre-nosotros/: canonical and hreflang on primary, links on ${host}`, async () => {
       const r = await request(host, '/es/sobre-nosotros/');
       assert.equal(r.status, 200, `HTTP ${r.status} ${r.headers.location || ''}`);
-      assert.deepEqual(canonicals(r.body), [`http://${PRIMARY}/es/sobre-nosotros/`]);
+      assert.deepEqual(canonicals(r.body), [`${SCHEME}://${PRIMARY}/es/sobre-nosotros/`]);
       const alt = hreflangs(r.body);
       assert.ok(alt.length >= 2, 'hreflang alternates present');
       assert.ok(alt.every(([, href]) => new URL(href).hostname === PRIMARY), JSON.stringify(alt));
@@ -112,7 +111,7 @@ describe('Polylang (multilingual, /es/ directory)', () => {
   test('Spanish URL without trailing slash is normalised on the alias', async () => {
     const r = await request('alias-one.test', '/es/sobre-nosotros?utm_source=x');
     assert.equal(r.status, 301);
-    assert.equal(r.headers.location, 'http://alias-one.test/es/sobre-nosotros/?utm_source=x');
+    assert.equal(r.headers.location, `${SCHEME}://alias-one.test/es/sobre-nosotros/?utm_source=x`);
   });
 });
 
@@ -129,8 +128,8 @@ describe('Elementor', () => {
       assert.equal(r.status, 200);
       const buttons = tags(r.body).filter(t => t.name === 'a' && /elementor-button/.test(t.attrs.class || ''));
       assert.equal(buttons.length, 1, 'button rendered');
-      assert.equal(buttons[0].attrs.href, `http://${host}/contact/`);
-      assert.ok(tags(r.body).some(t => t.name === 'a' && t.attrs.href === `http://${host}/about/`), 'heading link');
+      assert.equal(buttons[0].attrs.href, `${SCHEME}://${host}/contact/`);
+      assert.ok(tags(r.body).some(t => t.name === 'a' && t.attrs.href === `${SCHEME}://${host}/about/`), 'heading link');
       const config = r.body.match(/elementorFrontendConfig = (\{.*?\});/s);
       if (config) {
         const ajax = JSON.parse(config[1]).urls?.ajaxurl;
@@ -153,7 +152,7 @@ describe('Contact Form 7', () => {
       assert.equal(r.status, 200);
       const form = tags(r.body).find(t => t.name === 'form' && /wpcf7-form/.test(t.attrs.class || ''));
       assert.ok(form, 'form rendered');
-      const action = new URL(form.attrs.action, `http://${host}/cf7-page/`);
+      const action = new URL(form.attrs.action, `${SCHEME}://${host}/cf7-page/`);
       assert.equal(action.hostname, host);
       const api = r.body.match(/"api":\s*\{\s*"root":\s*"([^"]+)"/);
       assert.ok(api, 'wpcf7 API config present');
