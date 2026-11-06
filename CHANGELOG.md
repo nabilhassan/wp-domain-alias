@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-06
+
+First non-beta release. No runtime behavior changes relative to 0.1.1-beta. The current documentation now explains DNS and hosting prerequisites explicitly. Previous prerelease entries are retained below for historical accuracy.
+
 ## [0.1.1-beta] - 2026-11-06
 
 Fixes the findings of the 0.1.0-beta review and extends testing to real web servers. Details: [docs/review-0.1.1-beta.md](docs/review-0.1.1-beta.md).
@@ -48,6 +52,7 @@ First beta, generalised from a private single-site plugin.
 - Only `HTTP_HOST` is trusted, with an exact allowlist; forwarded-host headers are ignored.
 - Admin, login, sign-up, cron, XML-RPC and `admin-post.php` always stay on the primary domain, including encoded path spellings.
 
-[Unreleased]: https://github.com/nabilhassan/wp-domain-alias/compare/v0.1.1-beta...HEAD
+[Unreleased]: https://github.com/nabilhassan/wp-domain-alias/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/nabilhassan/wp-domain-alias/compare/v0.1.1-beta...v0.1.1
 [0.1.1-beta]: https://github.com/nabilhassan/wp-domain-alias/compare/v0.1.0-beta...v0.1.1-beta
 [0.1.0-beta]: https://github.com/nabilhassan/wp-domain-alias/releases/tag/v0.1.0-beta

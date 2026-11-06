@@ -2,7 +2,7 @@
 # This file is distributed under the GPL-2.0-or-later.
 msgid ""
 msgstr ""
-"Project-Id-Version: WP Domain Alias 0.1.1-beta\n"
+"Project-Id-Version: WP Domain Alias 0.1.1\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/wp-domain-alias\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -111,7 +111,7 @@ msgid "WP Domain Alias:"
 msgstr ""
 
 #: includes/class-admin.php:235
-msgid "The \"point canonical URLs to the alias\" setting was removed in 0.1.1-beta. Canonical URLs on alias pages now point to the primary domain, matching the sitemaps and structured data. Review your search engine setup if you relied on alias canonicals."
+msgid "The \"point canonical URLs to the alias\" setting was removed in 0.1.1. Canonical URLs on alias pages now point to the primary domain, matching the sitemaps and structured data. Review your search engine setup if you relied on alias canonicals."
 msgstr ""
 
 #: includes/class-admin.php:239

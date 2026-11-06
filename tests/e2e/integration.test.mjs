@@ -266,11 +266,11 @@ describe('admin screen (authenticated, primary host)', () => {
     setSettings({ aliases: ['alias-one.test'], canonical_mode: 'alias' });
     let html = (await page()).body;
     assert.ok(!('canonical_mode' in JSON.parse(wp('option', 'get', 'wp_domain_alias_settings', '--format=json'))), 'key removed');
-    assert.match(html, /was removed in 0\.1\.1-beta/);
+    assert.match(html, /was removed in 0\.1\.1/);
     const r = await post({ action: 'wpda_dismiss_canonical_notice', _wpnonce: nonce(html, 'wpda_dismiss_canonical_notice') });
     assert.equal(r.status, 302);
     html = (await page()).body;
-    assert.doesNotMatch(html, /was removed in 0\.1\.1-beta/);
+    assert.doesNotMatch(html, /was removed in 0\.1\.1/);
     assert.doesNotMatch(html, /wpda_canonical_mode/, 'no canonical mode control');
   });
   test('health check runs and reports per domain', async () => {
